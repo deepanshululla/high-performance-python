@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+
+# uv / virtualenvs
+.venv/
+.viz-venv/
+
+# Profiling artifacts
+*.prof
+*.lprof
+
+# Generated visualizations
+julia_profile.png
+julia_flame*.svg
+julia_flame*.html
+
+# Downloaded JS/CSS assets for the interactive flame graph
+.viz-assets/

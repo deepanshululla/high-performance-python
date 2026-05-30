@@ -1,0 +1,23 @@
+[project]
+name = "high-performance-python"
+version = "0.1.0"
+description = "Julia set example from High Performance Python, with profiling & flame-graph tooling."
+requires-python = ">=3.12"
+# The Julia set itself is pure standard library — no runtime dependencies.
+dependencies = []
+
+[dependency-groups]
+# Profiling & visualization tools used in this project.
+# Installed by default via `uv sync` (see default-groups below).
+profiling = [
+    "gprof2dot>=2025.4.14",  # cProfile stats -> Graphviz call-graph PNG (needs system `dot`)
+    "snakeviz>=2.2.2",       # interactive icicle viewer (local web server)
+    "flameprof>=0.4",        # static SVG flame graph from pstats
+    "line-profiler>=5.0.2",
+]
+
+[tool.uv]
+# This is an app/script project, not a distributable package — don't build it,
+# just manage the environment and dependencies.
+package = false
+default-groups = ["profiling"]

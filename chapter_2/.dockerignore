@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.claude/
+.venv/
+.viz-venv/
+.viz-assets/
+*.prof
+*.lprof
+julia_flame*
+julia_profile.png
