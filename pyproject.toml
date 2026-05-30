@@ -4,7 +4,11 @@ version = "0.1.0"
 description = "Julia set example from High Performance Python, with profiling & flame-graph tooling."
 requires-python = ">=3.12"
 # The Julia set itself is pure standard library — no runtime dependencies.
-dependencies = []
+dependencies = [
+    "matplotlib>=3.10.9",
+    "memory-profiler>=0.61.0",
+    "numpy>=2.4.6",
+]
 
 [dependency-groups]
 # Profiling & visualization tools used in this project.

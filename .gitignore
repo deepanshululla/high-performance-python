@@ -6,14 +6,17 @@ __pycache__/
 .venv/
 .viz-venv/
 
-# Profiling artifacts
+# Profiling artifacts (regenerable data)
 *.prof
 *.lprof
+mprofile_*.dat
 
-# Generated visualizations
-julia_profile.png
-julia_flame*.svg
+# Large generated HTML (the interactive flame graph is ~2.3 MB)
 julia_flame*.html
 
 # Downloaded JS/CSS assets for the interactive flame graph
 .viz-assets/
+
+# NOTE: the PNG/SVG images below are intentionally NOT ignored — they are
+# inlined in chapter_2/README.md as documentation:
+#   julia_profile.png, julia_flame.svg, mprof_julia.png, mprof_julia_pure.png
