@@ -1,0 +1,23 @@
+.git/
+.github/
+.claude/
+.idea/
+.vscode/
+
+# Local virtualenvs — the container creates its own via `uv sync`.
+.venv/
+.viz-venv/
+.viz-assets/
+
+# Bytecode / cache
+__pycache__/
+*.pyc
+
+# Profiling artifacts — regenerated inside the container as needed.
+*.prof
+*.lprof
+chapter_2/julia_flame*
+chapter_2/julia_profile.png
+
+# Markdown / project metadata that the runtime image doesn't need.
+README.md

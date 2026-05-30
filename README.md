@@ -5,14 +5,14 @@ The canonical Julia-set escape-time example from *High Performance Python* (Gore
 ## What's here
 
 ```
-chapter_2/
-├── julia_set.py          # pure-Python escape-time loop, @timefn decorator, argparse CLI
-├── Dockerfile            # python:3.12-slim + GNU time + graphviz + profiling stack
-├── build_flame_html.py   # cProfile .prof → self-contained d3-flame-graph HTML
-└── .dockerignore
+Dockerfile                # uv-based image; installs from pyproject.toml + uv.lock
+.dockerignore
 pyproject.toml            # uv-managed; runtime deps = [] (stdlib only)
                           #   [profiling] group: gprof2dot, snakeviz, flameprof, line-profiler
 uv.lock
+chapter_2/
+├── julia_set.py          # pure-Python escape-time loop, @timefn decorator, argparse CLI
+└── build_flame_html.py   # cProfile .prof → self-contained d3-flame-graph HTML
 ```
 
 The Julia-set computation itself has **zero runtime dependencies** — the `profiling` group only adds the visualization front-ends.
@@ -91,10 +91,10 @@ uv run kernprof -l -v chapter_2/julia_set.py
 
 ## Docker
 
-Reproduces the book's measurements under a clean image with GNU `/usr/bin/time -v` as the entrypoint, so wall time + max RSS + page faults are reported alongside the script output.
+Reproduces the book's measurements under a clean image with GNU `/usr/bin/time -v` as the entrypoint, so wall time + max RSS + page faults are reported alongside the script output. The image is built on the official uv base and installs from `pyproject.toml` + `uv.lock` — no duplicated dependency list.
 
 ```bash
-docker build -t hpp-julia chapter_2/
+docker build -t hpp-julia .
 docker run --rm hpp-julia                  # default: 1000×1000, 300 iter
 docker run --rm hpp-julia --width 500 --max-iterations 100
 ```
