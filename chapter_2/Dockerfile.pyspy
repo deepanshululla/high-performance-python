@@ -1,0 +1,14 @@
+# py-spy needs to read another process's memory. On macOS that requires sudo,
+# but inside a Linux container it just needs the SYS_PTRACE capability:
+#   docker build -f chapter_2/Dockerfile.pyspy -t julia-pyspy chapter_2/
+#   docker run --rm --cap-add SYS_PTRACE -v "$PWD/chapter_2:/out" julia-pyspy
+FROM python:3.12-slim
+
+RUN pip install --no-cache-dir py-spy
+
+WORKDIR /app
+COPY julia_set.py .
+
+# Sample the run and write a flame graph to the mounted /out volume.
+ENTRYPOINT ["py-spy", "record", "-o", "/out/pyspy_julia.svg", \
+            "--format", "flamegraph", "--", "python", "julia_set.py"]

@@ -33,7 +33,15 @@ fixture checksum `sum(output) == 33219980`.
 | `lprof_swap_order.py` | Line-profile driver for the swap-order experiment (one call each). |
 | `build_flame_html.py` | Converts `julia.prof` into a self-contained interactive flame-graph HTML. |
 | `Dockerfile` | Runs the Julia set under GNU `time -v` in a container; includes graphviz + all profiling tools. |
+| `Dockerfile.pyspy` | Runs py-spy (needs `SYS_PTRACE`) in a container to flame-graph the run without host root. |
+| `pyspy_julia.svg` | py-spy sampling flame graph (interactive). |
 | `julia.prof` | Saved `cProfile` stats. |
+| `scalene-julia.json` / `scalene-julia.html` | Scalene profile (CPU Python-vs-native + memory) and its HTML report. |
+| `viztracer_julia.json` | VizTracer timeline trace (open with `vizviewer`). |
+| `escape_demo.c` / `escape_demo.s` | C version of the inner-loop ops + its ARM64 assembly (bytecode-vs-assembly contrast). |
+| `leaky_flask.py` | Flask app with a leaky endpoint wrapped in real Dozer middleware (WSGI leak detection). |
+| `leaky_api.py` | FastAPI (ASGI) equivalent: a `/_memory` endpoint hand-rolled with gc/objgraph/tracemalloc. |
+| `leaky.bin` / `leaky_memray.html` | memray capture of the FastAPI leak + its interactive allocation flame graph. |
 | `julia_set.py.lprof`, `julia_set_expanded.py.lprof` | Saved `line_profiler` stats. |
 | `julia_profile.png` | gprof2dot call-graph render. |
 | `julia_flame.svg` / `julia_flame.html` | Static flame graph (flameprof). |
@@ -323,9 +331,277 @@ pre-sized), and the grid can't be reused without recomputing. For a one-shot
 calculation, storing it was pure waste. **Lesson: materializing intermediate
 collections is an invisible RAM cost — profile memory to see it.**
 
+### Long-running web servers — leak detection with Dozer
+
+Everything above profiles a **single batch run**. A web server is the opposite: a
+**long-running process** where the danger is a slow **memory leak** — RAM creeping
+up over hours until a worker is OOM-killed. `dozer` is **WSGI middleware** built
+for this: it samples the live object graph (`gc`) on a timer and serves a
+`/_dozer/` UI showing each type's object count *over time* — a type that only
+climbs is a leak.
+
+```python
+from flask import Flask
+from dozer import Dozer
+app = Flask(__name__)
+app.wsgi_app = Dozer(app.wsgi_app)          # one line — wraps the WSGI app
+# open http://localhost:8000/_dozer/
+```
+
+`chapter_2/leaky_flask.py` has a deliberately leaky endpoint (a global list that
+grows every request). Drive it and Dozer catches the offender:
+
+```bash
+uv run python chapter_2/leaky_flask.py                       # serves on :8000
+for i in $(seq 1 30); do curl -s "localhost:8000/leak?n=1000" >/dev/null; done
+# Dozer index then reports:
+#   __main__.Widget   Min: 0   Cur: 31000   Max: 31000   [TRACE]
+```
+
+`Min 0 → Cur 31000 → Max 31000`, monotonically up and never down — the leak
+signature. The contrast: a `/healthy` endpoint that creates and *drops* the same
+objects shows no accumulation (the GC reclaims them).
+
+**The TRACE view — finding the root cause.** Clicking `TRACE` on a type lists its
+live objects; clicking one walks `gc.get_referrers()` up to the root and prints the
+chain that keeps it alive (read bottom-up):
+
+```
+__main__.Widget (id 4429618864)                         ← the leaked object
+  ← builtins.list  "list of len 32000: [<Widget>, ...]"  ← held by a list...
+  ← builtins.dict  (via its '_LEAKED' key)               ← ...stored under '_LEAKED'
+  ← builtins.module '__main__' (via '__dict__')          ← a module global
+```
+
+That spells out the culprit exactly: **`__main__._LEAKED`, a global list**, is
+holding all 32,000 Widgets. Type → objects → **referrer chain to root** is what
+makes Dozer a leak *locator*, not just a memory graph — in a large codebase this
+turns hours of bisecting into a 30-second diagnosis.
+
+Caveats: Dozer is **WSGI-only** (Flask, Pyramid, Bottle) — it can't wrap **ASGI**
+apps (FastAPI, Starlette). And it's a **staging** tool — the introspection adds
+overhead and exposes internals, so don't leave `/_dozer/` on a public production
+server. Lineage: **Dowser** (original, Py2, referenced by the book) → **Dozer**
+(maintained Py3 fork).
+
+### FastAPI / ASGI — memray (and a `/_memory` endpoint)
+
+Dozer can't wrap FastAPI (ASGI). Two equivalents, both demonstrated on the same
+leaky app (`chapter_2/leaky_api.py`):
+
+**1. A hand-rolled `/_memory` endpoint** — gc object counts (Dozer-style) +
+`tracemalloc` allocation sites, embedded in the app:
+
+| | baseline | after 20k leaked |
+|---|---|---|
+| RSS | 79 MB | 239 MB |
+| live `Widget`s | 0 | 20,000 |
+| top types | function, dict… | **list (22070), Widget (20000)** |
+
+`tracemalloc` even names the lines: `leaky_api.py:36` (Widget payload) and `:42`
+(the `_LEAKED.extend` leak site).
+
+**2. memray** — the production-grade allocator-level profiler (Bloomberg). It
+intercepts *every* `malloc`/`calloc`/`mmap` (incl. native C-extension memory) and
+makes flame graphs. Works with any Python, including uvicorn:
+
+```bash
+uv run memray run --force -o chapter_2/leaky.bin -m uvicorn leaky_api:app --port 8002
+# drive the leak with curl, then SIGINT the server to finalize the capture
+uv run memray stats     chapter_2/leaky.bin            # CLI summary
+uv run memray flamegraph -o chapter_2/leaky_memray.html chapter_2/leaky.bin
+uv run memray run --live -m uvicorn leaky_api:app      # live TUI, no file
+```
+
+memray's `stats` pinned the leak to one line:
+
+```
+📦 Total memory allocated: 495 MB    📈 Peak: 283 MB    📏 854,143 allocations
+🥇 Top allocating location (by size):
+   __init__  leaky_api.py:36  ->  249 MB    ← Widget.payload = [i]*1000
+```
+
+| Tool | Granularity | Native allocs | ASGI |
+|---|---|---|---|
+| Dozer | gc object counts | ✗ | ✗ (WSGI only) |
+| `/_memory` endpoint | gc + tracemalloc snapshots | ✗ | ✓ |
+| **memray** | **every malloc/calloc/mmap** | **✓** | ✓ |
+
+For real FastAPI leak-hunting, reach for **memray**; the `/_memory` endpoint is a
+lightweight always-on alternative; `tracemalloc.compare_to()` between two
+snapshots is the zero-dependency fallback.
+
 ---
 
-## 6. Microbenchmarking with `timeit`
+## 6. Scalene — CPU (Python vs. native) + memory in one pass
+
+`scalene` is a low-overhead sampling profiler that does something the others
+can't: it splits each line's CPU time into **Python** (interpreter) vs. **native**
+(C) vs. **system**, and captures **memory** in the *same* run.
+
+```bash
+uv run scalene run -o chapter_2/scalene-julia.json chapter_2/julia_set.py
+uv run scalene view --cli -r chapter_2/scalene-julia.json     # terminal, active lines
+uv run scalene view --standalone chapter_2/scalene-julia.json # self-contained HTML
+```
+
+Line-level for `calculate_z_serial_purepython`:
+
+```
+Line   Python%  Native%  System%  PeakMB   Code
+  29      0       0        0        8.3     output = [0] * len(zs)
+  34      0      42.1      1.5      0        while abs(z) < 2 and n < maxiter:
+  36     50.0     0        2.2      0            n += 1
+  58      0       1.5      0.3      3.0         zs.append(complex(...))
+  59      0       2.0      0.3      1.4         cs.append(complex(...))
+```
+
+Function summary: **50% Python, 42% native.**
+
+**The insight no other tool gives — *what kind* of time, not just where:**
+
+- **Line 34 `while abs(z) < 2` → 42% native.** `abs()` on a complex number and
+  the comparison run in CPython's **C** code. This is "fast" time — already
+  compiled; you can't speed it up by rewriting Python.
+- **Line 36 `n += 1` → 50% Python.** A trivial increment is *pure interpreter
+  overhead*. Half the entire function is the Python VM doing `n += 1` and loop
+  bookkeeping.
+
+This split is **actionable**: high Python% = interpreter-bound → escape Python
+(numpy / Cython / Numba); high native% = already in C → leave it alone. Line 36's
+50% is the hard-number proof of the whole chapter's thesis — half the runtime is
+interpreter tax on a trivial operation. (Recall numpy got `abs(z) < 2` to 2.7 ns/
+element vs. 30 ns scalar by removing exactly this.)
+
+Bonus: the memory column came from the *same* run — no separate `memory_profiler`
+pass needed (line 29's `output` list = 8.3 MB; the `zs`/`cs` appends = 3.0 + 1.4
+MB sampled).
+
+---
+
+## 7. py-spy — zero-instrumentation sampling (run via Docker)
+
+`py-spy` is an *external* sampling profiler: it reads stack traces from another
+process's memory at ~100 Hz, so it needs **no code changes, no imports, and adds
+near-zero overhead** to the target. Its superpower is attaching to an
+**already-running** process by PID — profiling production code without a restart.
+
+The catch on macOS: reading another process's memory requires root (`sudo`), and
+even then Apple's kernel restrictions get in the way. The clean fix is to run it
+**inside a Linux container** with the `SYS_PTRACE` capability — no host password:
+
+```bash
+docker build -f chapter_2/Dockerfile.pyspy -t julia-pyspy chapter_2/
+docker run --rm --cap-add SYS_PTRACE -v "$PWD/chapter_2:/out" julia-pyspy
+# -> writes chapter_2/pyspy_julia.svg (an interactive flame graph)
+```
+
+- `--cap-add SYS_PTRACE` grants the Linux capability py-spy needs (`process_vm_readv`).
+- `-v "$PWD/chapter_2:/out"` brings the SVG back to the host.
+
+Line-level samples (400 total) for the pure-Python run:
+
+| Line | % | Code |
+|---|---|---|
+| `35` | 44.0 | `z = z * z + c` |
+| `34` | 42.5 | `while abs(z) < 2 and n < maxiter:` |
+| `36` | 6.75 | `n += 1` |
+| `58`/`59` | 1.75 / 3.75 | `zs`/`cs.append(...)` |
+
+**Sampling vs. instrumentation — the same code, a different picture.** Compare
+line 36 (`n += 1`): `line_profiler` said **28%**, py-spy says **6.75%**.
+`line_profiler` *instruments* every line and its per-line overhead inflates cheap
+lines; py-spy *samples* and a fast `n += 1` is rarely the line caught
+mid-execution. **py-spy is closer to the truth** — the real work is the complex
+arithmetic (line 35) and `abs` (line 34), ~86% together, not the increment.
+
+Other modes (all need `sudo`/`SYS_PTRACE`):
+
+```bash
+py-spy top  -- python julia_set.py     # live top-style view, no output file
+py-spy dump --pid <PID>                # one-shot stack snapshot of a live process
+py-spy record --pid <PID> -o out.svg   # sample a process already running
+```
+
+**`top` view** — an `htop`-style live function ranking that updates in real time
+(here, the final frame of a 2000×2000 run, 1800 samples):
+
+```
+Total Samples 1800
+GIL: 100.00%, Active: 100.00%, Threads: 1
+  %Own   %Total  OwnTime  TotalTime  Function (filename)
+100.00% 100.00%   16.81s    16.81s   calculate_z_serial_purepython (julia_set.py)
+  0.00% 100.00%    1.19s    18.00s   calc_pure_python (julia_set.py)
+  0.00% 100.00%   0.000s    16.81s   measure_time (julia_set.py)
+  0.00% 100.00%   0.000s    18.00s   <module> (julia_set.py)
+```
+
+- **%Own** = samples where the function was on *top* of the stack (its own code);
+  **%Total** = anywhere on the stack (it or its callees) — the live equivalent of
+  cProfile's tottime vs cumtime.
+- `calculate_z...` is **100% %Own** (all work); the others are **0% %Own /
+  100% %Total** — pure plumbing.
+- **GIL: 100%** confirms the GIL was held the whole time → pure CPU-bound, no I/O
+  wait or thread contention.
+
+---
+
+## 8. VizTracer — full timeline tracing
+
+The profilers above *aggregate* ("abs took 2 s total") or *sample* ("42% of hits
+were on line 34"). `viztracer` is different: it records a **full timeline** —
+every function call's entry/exit timestamp — so you see *when* things happened and
+how they nest, not just totals. View it as an interactive Perfetto timeline.
+
+```bash
+uv run viztracer --ignore_c_function -o chapter_2/viztracer_julia.json chapter_2/julia_set.py
+uv run vizviewer chapter_2/viztracer_julia.json    # opens a zoomable timeline in the browser
+```
+
+The clean (C-ignored) timeline shows the nested spans and their durations:
+
+```
+2862 ms  <module>
+2849 ms  └─ calc_pure_python
+2730 ms     └─ measure_time (@timefn wrapper)
+2730 ms        └─ calculate_z_serial_purepython
+```
+
+The nesting reveals what aggregates don't: `calc_pure_python` is 2849 ms but its
+child `calculate_z` is 2730 ms → **grid-building ≈ 119 ms, then compute 2730 ms,
+sequentially** — you can watch the build phase finish before compute starts.
+
+**The cautionary lesson — tracing doesn't scale to hot loops.** Run *without*
+`--ignore_c_function` and VizTracer traces C builtins too:
+
+| Run | Events | Size | What happened |
+|---|---|---|---|
+| default (traces C) | **1,000,002** | **121 MB** | 999,992 were `builtins.abs`; the 1M-entry buffer **overflowed**, dropping ~33M of the 34M calls |
+| `--ignore_c_function` | 602 | 686 KB | Python calls only — complete and tiny |
+
+It records *every* call, so a 34M-iteration loop produces a huge **and incomplete**
+trace. Filter to make it usable:
+
+```bash
+uv run viztracer --ignore_c_function ...      # skip C builtins (biggest win here)
+uv run viztracer --max_stack_depth 5 ...      # cap nesting depth
+uv run viztracer --min_duration 10us ...      # drop ultra-fast calls
+```
+
+**Three styles, one table:**
+
+| Style | Tools | Detail | Cost on hot loops |
+|---|---|---|---|
+| Aggregate | cProfile, line_profiler | totals per function/line | moderate |
+| Sample | py-spy, scalene | statistical @ ~100 Hz | near-zero, scales fine |
+| **Trace** | **VizTracer** | *every* call + timestamp | huge; must filter |
+
+Use VizTracer for **control flow and timing** (async ordering, what blocks what,
+pipeline stalls) — not for million-iteration number crunching, where sampling wins.
+
+---
+
+## 9. Microbenchmarking with `timeit`
 
 ```bash
 uv run python -m timeit -s "z = complex(-0.62772,-0.42193)" "abs(z) < 2"
@@ -363,7 +639,95 @@ Same code change, opposite outcome. You cannot optimize by intuition.
 
 ---
 
-## 7. The numpy version — what actually changed
+## 10. Bytecode — the `dis` module
+
+`dis` shows the actual CPython VM operations a function compiles to. It's the
+ground truth under every profiler above: the "interpreter overhead" they all hint
+at is *literally* these bytecodes being fetched, decoded, and dispatched one at a
+time.
+
+```bash
+uv run python -c "import dis; from julia_set import calculate_z_serial_purepython as f; dis.dis(f.__wrapped__)"
+uv run python -m dis chapter_2/julia_set.py    # whole module
+```
+
+**The inner loop, counted:**
+
+| Source line | Bytecode ops | Runs |
+|---|---|---|
+| 34 `while abs(z) < 2 and n < maxiter:` | 11 | 34.2M |
+| 35 `z = z * z + c` | 5 | 33.2M |
+| 36 `n += 1` | 5 | 33.2M |
+| **body total** | **21 ops/iteration** | |
+
+**21 ops × 33,219,980 iterations ≈ 698 million bytecode dispatches.** That's where
+the ~2.7 s goes — not the math, the dispatching. Even `n += 1` is 5 ops
+(`LOAD_FAST`, `LOAD_SMALL_INT`, `BINARY_OP +=`, `STORE_FAST`, `JUMP_BACKWARD`),
+which is why `line_profiler` clocked that "trivial" line at 28%.
+
+**Bytecode explains the squared-magnitude mystery (§9).** Op count predicts the
+timeit result exactly:
+
+| Condition | Bytecode ops | timeit |
+|---|---|---|
+| `abs(z) < 2` | **6** (one `CALL` into C) | 30 ns |
+| `z.real*z.real + z.imag*z.imag < 4` | **13** (4× `LOAD_ATTR`, 3× `BINARY_OP`) | 97 ns |
+
+The "optimized" form more than doubles the bytecode — four attribute lookups plus
+three arithmetic ops, all interpreter-dispatched — whereas `abs()` is a single
+`CALL` that does the whole magnitude in C. **More bytecode = more dispatch
+overhead = slower in pure Python.** (numpy has *no* per-element bytecode, so the
+trick's sqrt-avoidance finally wins there.)
+
+**The punchline:** the fix isn't shaving a bytecode here or there — it's to stop
+executing 698M of them. numpy collapses the loop to ~300 C-level array ops (zero
+per-element bytecode); Cython/Numba compile the 21 ops/iteration to native code.
+`dis` is the mechanical proof of why.
+
+### Bytecode vs. assembly — they are NOT the same thing
+
+`dis` shows **bytecode**: instructions for the CPython *virtual machine* (a
+software interpreter), e.g. `LOAD_FAST`, `BINARY_OP`. No CPU understands these.
+**Assembly** is what the physical CPU runs (`add`, `fmadd`, `mov`). The interpreter
+is itself a C program compiled to assembly — so each *one* bytecode op triggers a
+*chunk* of assembly inside the interpreter's eval loop.
+
+Compile the C equivalent (`escape_demo.c`) to native ARM64 to see the gap:
+
+```bash
+clang -O2 -S chapter_2/escape_demo.c -o chapter_2/escape_demo.s
+```
+
+| Operation | Python bytecode | C → ARM64 assembly |
+|---|---|---|
+| `n += 1` | 5 ops (`LOAD_FAST`, `LOAD_SMALL_INT`, `BINARY_OP +=`, `STORE_FAST`, `JUMP_BACKWARD`) | **1** instruction: `add w0, w0, #1` |
+| `z = z*z + c` | 5 ops + type dispatch, boxing, heap alloc | **9** FPU instructions, registers only (uses fused multiply-add `fmadd`) |
+
+```asm
+; n += 1                          ; z = z*z + c (real/imag as doubles)
+add  w0, w0, #1                   ldr   d2, [x0]        ; load z.real
+ret                               ldr   d3, [x1]        ; load z.imag
+                                  fnmul d4, d3, d3      ; -(imag*imag)
+                                  fmadd d4, d2, d2, d4  ; real*real + that  (fused!)
+                                  fadd  d0, d4, d0      ; + c.real
+                                  ...                   ; (9 instrs total, no alloc)
+```
+
+**The two numbers we measured, reconciled:** `dis` counted ~698M *bytecode*
+dispatches in the inner loop; `/usr/bin/time -l` counted ~54 billion *assembly*
+instructions retired. **54e9 ÷ 698e6 ≈ 77 machine instructions per bytecode op** —
+that ratio *is* the interpreter tax. The C `add` *is* the operation (1 cycle); the
+Python `BINARY_OP` is an instruction telling the interpreter to *go find and run*
+the operation (~77 instructions of decode / type-check / dispatch / refcount /
+allocate to reach the one `add` underneath).
+
+So: `dis` = the VM's instructions, `/usr/bin/time`'s "instructions retired" = the
+CPU's instructions. numpy/Cython/Numba win by deleting the interpreter layer so the
+hot loop becomes `fmadd`-style native code with no per-element bytecode at all.
+
+---
+
+## 11. The numpy version — what actually changed
 
 Only the inner calculation function changed; the grid-building and timing code is
 identical. The two nested Python loops became one loop over iterations:
@@ -390,10 +754,10 @@ switching to whole-array updates got it to ~1.5 s.)
 
 ---
 
-## 8. Experiments & verdicts
+## 12. Experiments & verdicts
 
 **Squared-magnitude trick** — pessimization in pure Python, win in numpy
-(see §6). Vectorize *first*, then the sqrt-avoiding trick helps.
+(see §9). Vectorize *first*, then the sqrt-avoiding trick helps.
 
 **Does swapping the `while` condition order help?**
 `abs(z) < 2 and n < maxiter`  vs  `n < maxiter and abs(z) < 2`
@@ -414,7 +778,7 @@ uv run kernprof -l -v -p chapter_2/lprof_swap_order.py chapter_2/lprof_swap_orde
 
 ---
 
-## 9. Key takeaways
+## 13. Key takeaways
 
 1. **Measure, don't guess.** The squared trick and the condition-swap both look
    like wins and aren't (in pure Python).
@@ -427,8 +791,14 @@ uv run kernprof -l -v -p chapter_2/lprof_swap_order.py chapter_2/lprof_swap_orde
    vectorize the loop away (numpy), or compile it (Cython/Numba in later
    chapters). That is the through-line of the whole book.
 5. **Different tools answer different questions:** `time` (whole process) →
-   `cProfile` (which function) → `line_profiler` (which line) → `timeit` (one
-   expression). Use the right granularity.
+   `cProfile` (which function) → `line_profiler` (which line) → `memory_profiler`/
+   `mprof` (which line/phase for RAM) → `scalene` (Python-vs-native CPU + memory
+   in one pass) → `py-spy` (zero-overhead sampling, attach to live processes) →
+   `viztracer` (full call timeline — control flow & timing) → `timeit` (one
+   expression) → `dis` (the bytecode underneath it all). Use the right granularity.
+6. **Sampling ≠ instrumentation.** `line_profiler` instruments every line (its own
+   overhead inflates cheap lines); `py-spy` samples at 100 Hz (closer to reality,
+   near-zero overhead). They disagreed most on the trivial `n += 1` — 28% vs 6.75%.
 
 ---
 
