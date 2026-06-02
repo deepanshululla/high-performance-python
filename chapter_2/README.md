@@ -723,7 +723,7 @@ allocate to reach the one `add` underneath).
 
 So: `dis` = the VM's instructions, `/usr/bin/time`'s "instructions retired" = the
 CPU's instructions. numpy/Cython/Numba win by deleting the interpreter layer so the
-hot loop becomes `fmadd`-style native code with no per-element bytecode at all.
+    hot loop becomes `fmadd`-style native code with no per-element bytecode at all.
 
 ---
 
