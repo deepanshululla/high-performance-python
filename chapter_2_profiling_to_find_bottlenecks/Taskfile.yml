@@ -1,0 +1,27 @@
+# Chapter 2 — Profiling to Find Bottlenecks.
+# Standalone:  cd chapter_2_profiling_to_find_bottlenecks && task
+# From root:   task ch2:<name>
+version: '3'
+
+vars:
+  ROOT:
+    sh: cd .. && pwd
+  PY: '{{.ROOT}}/.venv/bin/python'
+
+tasks:
+  default:
+    desc: List Chapter 2 tasks
+    cmds: [task --list]
+    silent: true
+
+  run:
+    desc: 'Run a Chapter 2 script: task ch2:run -- julia_set.py --width 500'
+    cmds: ['{{.PY}} {{.CLI_ARGS}}']
+
+  julia:
+    desc: Run the canonical Julia-set workload (asserts the fixture checksum)
+    cmds: ['{{.PY}} julia_set.py']
+
+  smoke:
+    desc: Run the Julia-set script as a quick sanity check
+    cmds: ['{{.PY}} julia_set.py']

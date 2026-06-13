@@ -1,0 +1,43 @@
+/* Light, readable palette for a docs-heavy, table-heavy site. */
+:root {
+  --ifm-color-primary: #0d9488;        /* teal — matches the chart accent */
+  --ifm-color-primary-dark: #0c857b;
+  --ifm-color-primary-darker: #0b7d73;
+  --ifm-color-primary-darkest: #09675f;
+  --ifm-color-primary-light: #0ea3a1;
+  --ifm-color-primary-lighter: #10b0a6;
+  --ifm-color-primary-lightest: #2dc7bd;
+  --ifm-code-font-size: 92%;
+  --ifm-font-size-base: 16px;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.08);
+  /* Wider content column so the results tables don't wrap awkwardly. */
+  --ifm-container-width-xl: 1140px;
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #2dc7bd;
+  --ifm-color-primary-dark: #25b3aa;
+  --ifm-color-primary-darker: #22a9a0;
+  --ifm-color-primary-darkest: #1c8b84;
+  --ifm-color-primary-light: #45cdc4;
+  --ifm-color-primary-lighter: #51d0c8;
+  --ifm-color-primary-lightest: #76d9d2;
+  --docusaurus-highlighted-code-line-bg: rgba(255, 255, 255, 0.1);
+}
+
+/* Charts are screenshots of plots — keep them tidy and centered. */
+.markdown img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+
+/* Results tables read better with a touch more breathing room. */
+.markdown table {
+  display: table;
+  width: 100%;
+}
+.markdown table th,
+.markdown table td {
+  padding: 0.5rem 0.75rem;
+}

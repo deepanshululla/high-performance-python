@@ -1,0 +1,45 @@
+# Chapter 8 — Compiling to C.
+# Standalone:  cd chapter_8_compiling_to_c && task
+# From root:   task ch8:<name>
+# Note: exercises build their Cython/C/Rust extensions on first run (cached after).
+version: '3'
+
+vars:
+  ROOT:
+    sh: cd .. && pwd
+  PY: '{{.ROOT}}/.venv/bin/python'
+
+tasks:
+  default:
+    desc: List Chapter 8 tasks
+    cmds: [task --list]
+    silent: true
+
+  run:
+    desc: 'Run a Chapter 8 script: task ch8:run -- ex04_numba_jit/ex04_numba_jit.py'
+    cmds: ['{{.PY}} {{.CLI_ARGS}}']
+
+  viz:
+    desc: Regenerate Chapter 8 charts + dashboard
+    cmds: ['{{.PY}} visualize_exercises.py']
+
+  smoke:
+    desc: Run every Chapter 8 exercise (builds extensions on first run; fail on first error)
+    cmds:
+      - |
+        ran=0
+        for s in ex*/ex*.py; do
+          [ -f "$s" ] || continue
+          echo "== $s =="; {{.PY}} "$s" >/dev/null || { echo "FAILED: $s"; exit 1; }
+          ran=$((ran+1))
+        done
+        echo "ok — $ran scripts passed"
+
+  clean:
+    desc: Remove Chapter 8 compiled extensions and generated C
+    cmds:
+      - find . -name '*.so' -delete
+      - find . -type d -name build -exec rm -rf {} + 2>/dev/null || true
+      - rm -f ex03_cython_numpy_openmp/_cyjulia_np.c ex07_prange_schedulers/_cyjulia_sched.c
+      - rm -f ex06_cython_annotate/annot.c ex06_cython_annotate/annot.html
+      - rm -rf ex12_rust_pyo3/crate/target

@@ -1,0 +1,98 @@
+# Taskfile for the High Performance Python study-drills repo.
+# Task runner: https://taskfile.dev  (install: `brew install go-task`)
+#
+#   task                       # list root tasks
+#   task setup                 # install Python deps with uv
+#   task docs                  # start the documentation site (hot reload)
+#   task ch8:viz               # regenerate Chapter 8 charts
+#   task ch3:smoke             # run every Chapter 3 exercise
+#   task ch8:run -- ex04_numba_jit/ex04_numba_jit.py
+#   task smoke:all             # run every exercise in every chapter
+#
+# Each chapter has its own Taskfile (chapter_N_*/Taskfile.yml), included below under a
+# `chN:` namespace and also runnable standalone (cd into the chapter, then `task`).
+version: '3'
+
+vars:
+  PY: .venv/bin/python
+
+includes:
+  ch2: {taskfile: ./chapter_2_profiling_to_find_bottlenecks/Taskfile.yml, dir: ./chapter_2_profiling_to_find_bottlenecks}
+  ch3: {taskfile: ./chapter_3_lists_and_tuples/Taskfile.yml, dir: ./chapter_3_lists_and_tuples}
+  ch4: {taskfile: ./chapter_4_dictionaries_and_sets/Taskfile.yml, dir: ./chapter_4_dictionaries_and_sets}
+  ch5: {taskfile: ./chapter_5_iterators_and_generators/Taskfile.yml, dir: ./chapter_5_iterators_and_generators}
+  ch6: {taskfile: ./chapter_6_matrix_and_vector_computation/Taskfile.yml, dir: ./chapter_6_matrix_and_vector_computation}
+  ch7: {taskfile: ./chapter_7_pandas_dask_polars/Taskfile.yml, dir: ./chapter_7_pandas_dask_polars}
+  ch8: {taskfile: ./chapter_8_compiling_to_c/Taskfile.yml, dir: ./chapter_8_compiling_to_c}
+
+tasks:
+  default:
+    desc: List all available tasks (use --list-all to include chapter tasks)
+    cmds: [task --list]
+    silent: true
+
+  # --- Setup / run ---------------------------------------------------------
+  setup:
+    desc: Install Python dependencies into .venv with uv
+    cmds:
+      - uv sync
+      - 'echo "Optional for Chapter 8: clang (Cython/FFI), gfortran (f2py), rustc+maturin (PyO3)."'
+
+  run:
+    desc: 'Run any script from the repo root: task run -- chapter_8_compiling_to_c/ex04_numba_jit/ex04_numba_jit.py'
+    cmds: ['{{.PY}} {{.CLI_ARGS}}']
+
+  # --- Aggregates across chapters ------------------------------------------
+  viz:all:
+    desc: Regenerate every chart in every chapter (slow)
+    cmds:
+      - task: ch3:viz
+      - task: ch4:viz
+      - task: ch5:viz
+      - task: ch6:viz
+      - task: ch7:viz
+      - task: ch8:viz
+
+  smoke:all:
+    desc: Run every exercise in every chapter (slow — Chapter 8 builds extensions)
+    cmds:
+      - task: ch2:smoke
+      - task: ch3:smoke
+      - task: ch4:smoke
+      - task: ch5:smoke
+      - task: ch6:smoke
+      - task: ch7:smoke
+      - task: ch8:smoke
+
+  # --- Documentation site (website/) ---------------------------------------
+  docs:
+    desc: Start the documentation site with hot reload at http://localhost:3000
+    dir: website
+    cmds: [npm start]
+
+  docs:install:
+    desc: Install the Docusaurus site's npm dependencies
+    dir: website
+    cmds: [npm install]
+
+  docs:sync:
+    desc: Regenerate website/docs/ from the chapter folders
+    dir: website
+    cmds: [npm run sync]
+
+  docs:build:
+    desc: Build the static documentation site into website/build/
+    dir: website
+    cmds: [npm run build]
+
+  docs:serve:
+    desc: Preview the production docs build locally
+    dir: website
+    cmds: [npm run serve]
+
+  # --- Housekeeping --------------------------------------------------------
+  clean:
+    desc: Remove compiled extensions and the docs build (keeps .venv and node_modules)
+    cmds:
+      - task: ch8:clean
+      - rm -rf website/build website/docs website/.docusaurus website/static

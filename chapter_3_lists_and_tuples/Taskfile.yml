@@ -1,0 +1,40 @@
+# Chapter 3 — Lists and Tuples.
+# Standalone:  cd chapter_3_lists_and_tuples && task
+# From root:   task ch3:<name>
+version: '3'
+
+vars:
+  ROOT:
+    sh: cd .. && pwd
+  PY: '{{.ROOT}}/.venv/bin/python'
+
+tasks:
+  default:
+    desc: List Chapter 3 tasks
+    cmds: [task --list]
+    silent: true
+
+  run:
+    desc: 'Run a Chapter 3 script: task ch3:run -- ex02_binary_search/ex02_binary_search.py'
+    cmds: ['{{.PY}} {{.CLI_ARGS}}']
+
+  viz:
+    desc: Regenerate every Chapter 3 chart (per-exercise plot.py)
+    cmds:
+      - |
+        for p in ex*/plot.py hypothesis/*/plot.py; do
+          [ -f "$p" ] && { echo "== $p =="; {{.PY}} "$p"; }
+        done
+
+  smoke:
+    desc: Run every Chapter 3 exercise and hypothesis (fail on first error)
+    cmds:
+      - |
+        ran=0
+        for s in ex*/ex*.py hypothesis/h*/*.py; do
+          case "$s" in */plot.py|*/visualize.py) continue;; esac
+          [ -f "$s" ] || continue
+          echo "== $s =="; {{.PY}} "$s" >/dev/null || { echo "FAILED: $s"; exit 1; }
+          ran=$((ran+1))
+        done
+        echo "ok — $ran scripts passed"

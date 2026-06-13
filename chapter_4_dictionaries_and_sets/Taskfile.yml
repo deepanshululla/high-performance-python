@@ -1,0 +1,40 @@
+# Chapter 4 — Dictionaries and Sets.
+# Standalone:  cd chapter_4_dictionaries_and_sets && task
+# From root:   task ch4:<name>
+version: '3'
+
+vars:
+  ROOT:
+    sh: cd .. && pwd
+  PY: '{{.ROOT}}/.venv/bin/python'
+
+tasks:
+  default:
+    desc: List Chapter 4 tasks
+    cmds: [task --list]
+    silent: true
+
+  run:
+    desc: 'Run a Chapter 4 script: task ch4:run -- ex01_hash_mask/ex01_hash_mask.py'
+    cmds: ['{{.PY}} {{.CLI_ARGS}}']
+
+  viz:
+    desc: Regenerate every Chapter 4 chart (per-exercise plot.py)
+    cmds:
+      - |
+        for p in ex*/plot.py hypothesis/*/plot.py; do
+          [ -f "$p" ] && { echo "== $p =="; {{.PY}} "$p"; }
+        done
+
+  smoke:
+    desc: Run every Chapter 4 exercise and hypothesis (fail on first error)
+    cmds:
+      - |
+        ran=0
+        for s in ex*/ex*.py hypothesis/h*/*.py; do
+          case "$s" in */plot.py|*/visualize.py) continue;; esac
+          [ -f "$s" ] || continue
+          echo "== $s =="; {{.PY}} "$s" >/dev/null || { echo "FAILED: $s"; exit 1; }
+          ran=$((ran+1))
+        done
+        echo "ok — $ran scripts passed"

@@ -1,104 +1,112 @@
-# High Performance Python — Julia Set
+# High Performance Python — Study Drills
 
-The canonical Julia-set escape-time example from *High Performance Python* (Gorelick & Ozsvald, O'Reilly), wired up with a profiling and flame-graph toolchain so you can reproduce the book's measurements end-to-end.
+Runnable, self-measuring practice exercises worked through *High Performance Python*, 3rd ed.
+(Gorelick & Ozsvald, O'Reilly), one chapter at a time. The book explains *why* Python is slow
+and how to make it fast; this repo turns each claim into a script you can run, with the timing
+and memory numbers measured on this machine rather than quoted from the page.
 
-## What's here
+The guiding principle across every chapter is **measured honesty**: each exercise isolates one
+variable, asserts a correctness anchor so a faster-but-wrong version fails loudly, and ends in a
+short writeup that drills from the surface number to the root cause. Where a result overturns the
+book's framing on modern hardware (Apple Silicon, CPython 3.14, pandas 3.0's Copy-on-Write,
+Cython 3.x), the surprise is reported, not smoothed over.
 
-```
-Dockerfile                # uv-based image; installs from pyproject.toml + uv.lock
-.dockerignore
-pyproject.toml            # uv-managed; runtime deps = [] (stdlib only)
-                          #   [profiling] group: gprof2dot, snakeviz, flameprof, line-profiler
-uv.lock
-chapter_2/
-├── julia_set.py          # pure-Python escape-time loop, @timefn decorator, argparse CLI
-└── build_flame_html.py   # cProfile .prof → self-contained d3-flame-graph HTML
-```
+## Chapters
 
-The Julia-set computation itself has **zero runtime dependencies** — the `profiling` group only adds the visualization front-ends.
+Each chapter is a self-contained folder with its own README index, a set of exercise
+sub-folders, and (from Chapter 3 on) a `hypothesis/` directory of falsifiable drills that go
+beyond the book. Every exercise folder holds a runnable benchmark script, a `chart.png`, and a
+prose `README.md`.
 
-## Quick start
+| chapter | topic | drills |
+| --- | --- | --- |
+| [2 — Profiling to Find Bottlenecks](chapter_2_profiling_to_find_bottlenecks/) | the Julia-set workload profiled end to end: `cProfile`, `line_profiler`, `py-spy`, `scalene`, `memray`, `viztracer`, and flame graphs | profiling toolchain |
+| [3 — Lists and Tuples](chapter_3_lists_and_tuples/) | dynamic-array overallocation, `bisect` search, the list-vs-tuple memory trade | 7 exercises, 4 hypotheses |
+| [4 — Dictionaries and Sets](chapter_4_dictionaries_and_sets/) | hashing, open-addressing probes, load factor and resize, memory cost | 9 exercises, 6 hypotheses |
+| [5 — Iterators and Generators](chapter_5_iterators_and_generators/) | lazy evaluation, the memory story of streaming vs materializing | 9 exercises, 4 hypotheses |
+| [6 — Matrix and Vector Computation](chapter_6_matrix_and_vector_computation/) | numpy vectorization, in-place vs out-of-place, cache effects, `numexpr`, GPU/MPS | 12 exercises, 7 hypotheses |
+| [7 — Pandas, Dask, Polars](chapter_7_pandas_dask_polars/) | row-iteration vehicles, the `concat` quadratic trap, Arrow storage, scaling engines | 9 exercises, 6 hypotheses |
+| [8 — Compiling to C](chapter_8_compiling_to_c/) | Cython, Numba, Pythran, and the FFI ladder: ctypes, cffi, a CPython extension, f2py, Rust/PyO3 | 12 exercises |
 
-```bash
-uv sync                                  # creates .venv, installs profiling tools
-uv run python chapter_2/julia_set.py     # 1000×1000 grid, 300 iterations
-```
+A repo-wide [`glossary.md`](glossary.md) collects the concepts, tools, and terms as the
+exercises use them, following the book's arc.
 
-Custom grid / iteration count:
+## Setup
 
-```bash
-uv run python chapter_2/julia_set.py --width 2000 --max-iterations 300
-```
-
-The 1000×1000 @ 300-iter run asserts `sum(output) == 33219980` — the book's fixture value.
-
-## Benchmarking
-
-Wall time via `timeit` (5 loops × 5 repeats):
-
-```bash
-uv run python -m timeit -v -n 5 -r 5 \
-    -s "from chapter_2.julia_set import calc_pure_python" \
-    "calc_pure_python(1000, 300)"
-```
-
-The `@timefn` decorator in `julia_set.py` also prints per-call timing for the inner loop, so you can separate grid-construction overhead from the escape-time work.
-
-## Profiling
-
-### cProfile (sorted by cumulative time)
+The repo is `uv`-managed. One sync installs every dependency the chapters use (numpy, pandas,
+polars, dask, scikit-learn, numba, cython, cffi, pythran, torch, and the profiling/visualization
+front-ends):
 
 ```bash
-uv run python -m cProfile -s cumulative chapter_2/julia_set.py
-uv run python -m cProfile -o chapter_2/julia.prof chapter_2/julia_set.py
+uv sync
 ```
 
-The cumulative view typically shows `builtins.abs` dominating after the loop body itself — the canonical book finding (~34M calls for the default grid).
+Benchmarked on **CPython 3.14 / Apple Silicon (10 cores)**, run from the repo root. Exercises
+add the repo root to `sys.path` to import the two shared helpers:
 
-### Call-graph PNG (gprof2dot + graphviz)
+- **`perf.py`** — `time_s(fn, number, repeat)`, `peak_bytes(fn)` (via `tracemalloc`), `human(n)`.
+- **`vizutil.py`** — shared matplotlib styling (`setup`, `save`, `COLORS`) for the charts.
+
+## Running a drill
+
+Every exercise is a plain script that prints its own measurements:
 
 ```bash
-uv run gprof2dot -f pstats chapter_2/julia.prof | dot -Tpng -o chapter_2/julia_profile.png
+# run any exercise (compiled chapters build their extensions on first run)
+.venv/bin/python chapter_8_compiling_to_c/ex04_numba_jit/ex04_numba_jit.py
+
+# most chapters have a visualizer that reuses each exercise's functions to (re)draw charts
+.venv/bin/python chapter_8_compiling_to_c/visualize_exercises.py            # all + dashboard
+.venv/bin/python chapter_8_compiling_to_c/visualize_exercises.py --only ex03  # just one
 ```
 
-### Interactive icicle viewer (snakeviz)
+Start from a chapter's own README for the tour, the results table, and how to read each chart.
+
+## Task runner (optional)
+
+A [Taskfile](https://taskfile.dev) wraps the common workflows (install: `brew install go-task`).
+The root `Taskfile.yml` includes a per-chapter Taskfile under a `chN:` namespace, and each
+chapter Taskfile also runs standalone (`cd chapter_8_compiling_to_c && task`).
 
 ```bash
-uv run snakeviz chapter_2/julia.prof
+task                 # list the root tasks
+task --list-all      # include every chapter task (ch2:… … ch8:…)
+task setup           # uv sync
+task docs            # start the documentation site (hot reload)
+
+task ch8:viz         # regenerate Chapter 8 charts + dashboard
+task ch3:smoke       # run every Chapter 3 exercise (asserts correctness)
+task ch8:run -- ex04_numba_jit/ex04_numba_jit.py   # run one script
+task run -- chapter_6_matrix_and_vector_computation/ex01_list_vs_numpy_norm/ex01_list_vs_numpy_norm.py
+
+task smoke:all       # run every exercise in every chapter
+task viz:all         # regenerate every chart (slow)
+task clean           # remove compiled extensions + the docs build
 ```
 
-### Static SVG flame graph (flameprof)
+## Documentation site
+
+All of the chapter and exercise writeups are also published as a browsable, searchable
+[Docusaurus](https://docusaurus.io/) site under [`website/`](website/). The chapter folders stay
+the single source of truth — a sync step (`website/sync-docs.mjs`) generates the site's `docs/`
+from them, co-locating each chart and rewriting inter-page links, so there's no duplicated
+content to keep in step.
 
 ```bash
-uv run flameprof chapter_2/julia.prof > chapter_2/julia_flame.svg
+cd website
+npm install        # first time only
+npm start          # syncs from the repo, then serves with hot reload at http://localhost:3000
+npm run build      # static production build into website/build/ (host anywhere)
+npm run serve      # preview the production build
 ```
 
-### Interactive d3 flame graph (custom builder)
-
-```bash
-uv run python chapter_2/build_flame_html.py chapter_2/julia.prof chapter_2/julia_flame_interactive.html
-```
-
-Open the resulting HTML in a browser — click to zoom, hover for tooltips, type to search frames.
-
-### Line profiler
-
-Decorate hot functions with `@profile` (line-profiler injects this builtin), then:
-
-```bash
-uv run kernprof -l -v chapter_2/julia_set.py
-```
-
-## Docker
-
-Reproduces the book's measurements under a clean image with GNU `/usr/bin/time -v` as the entrypoint, so wall time + max RSS + page faults are reported alongside the script output. The image is built on the official uv base and installs from `pyproject.toml` + `uv.lock` — no duplicated dependency list.
-
-```bash
-docker build -t hpp-julia .
-docker run --rm hpp-julia                  # default: 1000×1000, 300 iter
-docker run --rm hpp-julia --width 500 --max-iterations 100
-```
+`npm run sync` (run automatically by `start`/`build`) rewrites `website/docs/` — don't edit it by
+hand; edit the chapter READMEs or the authored guides in `website/content/`. The build is a
+portable static bundle with offline search; publishing it (e.g. to GitHub Pages) later just means
+setting `url`/`baseUrl` in `website/docusaurus.config.js` and adding a deploy step.
 
 ## Reference
 
-Gorelick, M. & Ozsvald, I. *High Performance Python*, 2nd ed. (O'Reilly, 2020), Chapter 2 — "Profiling to Find Bottlenecks."
+Gorelick, M. & Ozsvald, I. *High Performance Python*, 3rd ed. (O'Reilly). Companion reading
+notes (with "Key Insights" and "5 Whys" callouts) live in the author's Obsidian vault, one note
+per chapter.

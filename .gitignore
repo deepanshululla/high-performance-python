@@ -19,3 +19,6 @@ mprofile_*.dat
 # they are documentation assets (inlined in / linked from chapter_2/README.md):
 #   julia_profile.png, julia_flame.svg/.html, julia_flame_interactive.html,
 #   mprof_*.png, scalene-julia.json/.html
+
+# go-task cache
+.task/
