@@ -19,11 +19,12 @@ HERE = pathlib.Path(__file__).resolve().parent
 PANELS = [
     ("h01_ocr_concurrency", "h01_ocr_concurrency.png"),
     ("h02_gil_process_pool", "h02_gil_process_pool.png"),
+    ("h03_multiprocessing_vs_hybrid", "h03_multiprocessing_vs_hybrid.png"),
 ]
 
 
 def main():
-    fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+    fig, axes = plt.subplots(1, 3, figsize=(19, 5))
     for ax, (folder, png) in zip(axes.flat, PANELS):
         ax.axis("off")
         path = HERE / folder / png

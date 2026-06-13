@@ -75,6 +75,10 @@ actual lesson, hold.
    confirms that offloading the CPU to a `ProcessPoolExecutor` breaks through it (1.28× over
    async-only, 3.0× over serial) — the concrete reason you eventually pair asyncio with
    multiprocessing.
+9. **The async+pool hybrid even beats plain per-page multiprocessing** (h03). Predicted to tie,
+   the hybrid is instead ~1.23× *faster* at matched parallelism — because running a whole page in
+   one process serializes its OCR wait and its CPU, while the hybrid overlaps every OCR wait with
+   other pages' CPU. Naive multiprocessing throws away the exact overlap the chapter is about.
 
 | # | exercise | one-line takeaway |
 | --- | --- | --- |
@@ -92,7 +96,7 @@ actual lesson, hold.
 
 ## Hypothesis lab
 
-Beyond the book: two falsifiable experiments built on ex09's real pipeline (render a PDF page,
+Beyond the book: three falsifiable experiments built on ex09's real pipeline (render a PDF page,
 OCR it with a live `claude -p --model haiku` call, run a heavy pure-Python analysis). Their
 numbers are **single-run and nondeterministic** — captured once and charted from the capture —
 but the *shape* of each result is the claim. See [hypothesis/](hypothesis/).
@@ -101,6 +105,7 @@ but the *shape* of each result is the claim. See [hypothesis/](hypothesis/).
 | --- | --- | --- | --- |
 | h01 | [optimal OCR concurrency](hypothesis/h01_ocr_concurrency/) | **CONFIRMED** | speedup saturates at a knee (~c=4), plateauing on the serial-CPU floor |
 | h02 | [GIL / process pool](hypothesis/h02_gil_process_pool/) | **CONFIRMED** | offloading CPU to a process pool beats async-only 1.28× — asyncio + multiprocessing compose |
+| h03 | [multiprocessing vs hybrid](hypothesis/h03_multiprocessing_vs_hybrid/) | **OVERTURNED** | the async+pool hybrid is ~1.23× *faster* than per-page multiprocessing at matched parallelism — MP serializes each page's OCR and CPU; the hybrid overlaps them |
 
 ![hypothesis dashboard](hypothesis/hypothesis_dashboard.png)
 

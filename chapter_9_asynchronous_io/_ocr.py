@@ -167,6 +167,20 @@ def analyze_text(text, cpu_rounds=None, vocab_size=None):
 
 # --- pipeline runners ------------------------------------------------------------------------
 
+def process_page_blocking(args):
+    """Whole pipeline for ONE page, fully blocking — the unit of work for pure multiprocessing.
+
+    A top-level function (picklable) so `ProcessPoolExecutor`/`multiprocessing.Pool` can run it
+    in a worker. Each worker does its own render (CPU), its own blocking `claude -p` (I/O — note
+    the worker simply waits during it, no overlap *within* the worker), and its own analyze
+    (CPU). Parallelism comes entirely from running several pages in several processes at once.
+    """
+    pdf_path, idx, render_dir = args
+    png = render_page(pdf_path, idx, render_dir)
+    text = ocr_page(png)
+    return {"page": idx, "stats": analyze_text(text)}
+
+
 def run_serial(pdf_path, page_indices, render_dir):
     """Baseline: render -> OCR -> analyze each page strictly in sequence."""
     stages = {"render": 0.0, "ocr": 0.0, "analyze": 0.0}

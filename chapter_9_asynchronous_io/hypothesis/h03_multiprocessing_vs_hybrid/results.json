@@ -1,0 +1,33 @@
+{
+  "pdf": "sample.pdf",
+  "n_pages": 6,
+  "model": "haiku",
+  "serial": 56.38537879195064,
+  "matched": [
+    {
+      "n": 2,
+      "mp": 29.991018207743764,
+      "hybrid": 22.533583416137844
+    },
+    {
+      "n": 4,
+      "mp": 19.527744833845645,
+      "hybrid": 16.150877458043396
+    },
+    {
+      "n": 6,
+      "mp": 11.656755875330418,
+      "hybrid": 10.209894415922463
+    }
+  ],
+  "decoupled": {
+    "ocr_conc": 6,
+    "cpu_workers": 2,
+    "time": 14.795345624908805,
+    "vs_mp_procs": 6,
+    "mp_time": 11.656755875330418
+  },
+  "verdict": "OVERTURNED",
+  "mean_ratio": 1.2272472890234496,
+  "finding": "the hybrid was consistently FASTER than pure multiprocessing at matched parallelism (mean 1.23x): per-page MP idles each worker during its blocking OCR, while the hybrid overlaps every OCR wait across pages"
+}
