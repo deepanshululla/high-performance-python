@@ -1,0 +1,18 @@
+# Compiled extension artifacts — regenerated on first run, machine/Python-specific.
+# (The .pyx / hand-written .c / .f90 / .rs sources and the charts ARE tracked.)
+*.so
+build/
+
+# Cython-generated C (the .pyx is the source)
+_cyjulia_np.c
+_cyjulia_sched.c
+
+# ex06: cython -a report and its generated C (annot.pyx is the source)
+annot.html
+annot.c
+
+# ex12: Rust build output (~90 MB); Cargo.toml/lock + src/ stay tracked
+target/
+
+# Note: diffusion.c, cdiffusion.c/.h, python_interface.c, diffusion.f90 are hand-written
+# source and stay tracked. chart.png / exercises_dashboard.png are documentation assets.
