@@ -2,3 +2,8 @@
 # The scripts, READMEs, and chart.png / exercises_dashboard.png assets ARE tracked.
 __pycache__/
 *.pyc
+
+# ex09 OCR pipeline: rendered page images are regenerated from sample.pdf on each run.
+# The sample.pdf input, results.json capture, and chart.png ARE tracked.
+pages/
+*_transcript.txt

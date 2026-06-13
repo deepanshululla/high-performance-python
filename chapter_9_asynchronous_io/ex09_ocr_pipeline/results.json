@@ -1,0 +1,64 @@
+{
+  "pdf": "sample.pdf",
+  "n_pages": 6,
+  "model": "haiku",
+  "serial": {
+    "total": 53.918428499717265,
+    "stages": {
+      "render": 0.32730633299797773,
+      "ocr": 36.1726964591071,
+      "analyze": 17.41837291698903
+    }
+  },
+  "async": {
+    "total": 26.26432929188013,
+    "concurrency": 4
+  },
+  "speedup": 2.0529147308698517,
+  "aggregate": {
+    "total_words": 164,
+    "total_code_tokens": 10,
+    "doc_top_terms": [
+      [
+        "components",
+        10
+      ],
+      [
+        "best",
+        7
+      ],
+      [
+        "practices",
+        7
+      ],
+      [
+        "component",
+        6
+      ],
+      [
+        "smart",
+        5
+      ],
+      [
+        "dumb",
+        5
+      ],
+      [
+        "the",
+        4
+      ],
+      [
+        "and",
+        4
+      ],
+      [
+        "data",
+        4
+      ],
+      [
+        "questions",
+        2
+      ]
+    ]
+  }
+}

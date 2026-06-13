@@ -1,0 +1,32 @@
+{
+  "pdf": "sample.pdf",
+  "n_pages": 6,
+  "model": "haiku",
+  "serial_total": 60.987480458337814,
+  "serial_ocr": 43.12799729174003,
+  "serial_cpu": 17.85943408217281,
+  "sweep": [
+    {
+      "concurrency": 1,
+      "total": 54.690070249605924
+    },
+    {
+      "concurrency": 2,
+      "total": 29.40787020791322
+    },
+    {
+      "concurrency": 4,
+      "total": 23.203376666177064
+    },
+    {
+      "concurrency": 8,
+      "total": 22.795053417328745
+    }
+  ],
+  "knee_concurrency": 4,
+  "best": {
+    "concurrency": 8,
+    "total": 22.795053417328745
+  },
+  "verdict": "CONFIRMED"
+}

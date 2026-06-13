@@ -20,17 +20,24 @@ tasks:
     cmds: ['{{.PY}} {{.CLI_ARGS}}']
 
   viz:
-    desc: Regenerate Chapter 9 charts + dashboard
-    cmds: ['{{.PY}} visualize_exercises.py']
+    desc: Regenerate Chapter 9 charts + dashboard (ex09 reads results.json; no model calls)
+    cmds:
+      - '{{.PY}} visualize_exercises.py'
+      - '{{.PY}} hypothesis/visualize.py'
+
+  ocr:
+    desc: 'Run the REAL OCR pipeline (spends tokens via claude -p): task ch9:ocr -- --pages 6'
+    cmds: ['{{.PY}} ex09_ocr_pipeline/ex09_ocr_pipeline.py {{.CLI_ARGS}}']
 
   smoke:
-    desc: Run every Chapter 9 exercise (fail on first error)
+    desc: Run every Chapter 9 exercise except ex09 (ex09 calls claude -p; run it via `task ocr`)
     cmds:
       - |
         ran=0
         for s in ex*/ex*.py; do
           [ -f "$s" ] || continue
+          case "$s" in ex09_ocr_pipeline/*) echo "== skip $s (real claude -p; use task ocr) =="; continue;; esac
           echo "== $s =="; {{.PY}} "$s" >/dev/null || { echo "FAILED: $s"; exit 1; }
           ran=$((ran+1))
         done
-        echo "ok — $ran scripts passed"
+        echo "ok — $ran scripts passed (ex09 skipped)"

@@ -1,6 +1,7 @@
 # Chapter 9 — Asynchronous I/O: Practice Exercises
 
-Runnable drills for *High Performance Python (3rd ed.)*, Chapter 9 — **eight** of them. The
+Runnable drills for *High Performance Python (3rd ed.)*, Chapter 9 — **nine** of them, plus a
+two-experiment hypothesis lab. The
 chapter's subject is the opposite of the rest of the book: the previous chapters made code do
 fewer CPU cycles, but here the bottleneck is not computation at all — it is *waiting*. When a
 program reads a socket or writes to a database it stalls in **I/O wait**, holding a CPU core
@@ -66,6 +67,14 @@ actual lesson, hold.
    every iteration and the I/O stays hidden (+0.08 s); yield rarely or never and the saves stack
    into an end-of-run drain (+0.55–0.64 s with a constrained server). Over-yielding is cheap in a
    coarse loop but costly in a tight one.
+8. **A real render→OCR→analyze pipeline shows async's ceiling once CPU is heavy** (ex09 + the
+   hypothesis lab). With a real `claude -p` OCR call (I/O) and a deliberately heavy pure-Python
+   analysis (CPU, ~3 s/page), the async pipeline only reaches **~2×** over serial — because
+   asyncio overlaps the OCR I/O but the GIL-bound CPU stages cannot overlap. [h01](hypothesis/h01_ocr_concurrency/)
+   confirms the speedup plateaus on the serial-CPU floor (knee at ~4 concurrent); [h02](hypothesis/h02_gil_process_pool/)
+   confirms that offloading the CPU to a `ProcessPoolExecutor` breaks through it (1.28× over
+   async-only, 3.0× over serial) — the concrete reason you eventually pair asyncio with
+   multiprocessing.
 
 | # | exercise | one-line takeaway |
 | --- | --- | --- |
@@ -77,8 +86,23 @@ actual lesson, hold.
 | ex06 | [batched pipeline](ex06_batched_pipeline/) | batching recovers most of it (~4.2×) with little code change |
 | ex07 | [full async](ex07_full_async/) | overlapping CPU and I/O hides the I/O almost entirely |
 | ex08 | [sleep(0) cadence](ex08_sleep_zero/) | how often you yield decides whether the I/O stays hidden |
+| ex09 | [OCR pipeline](ex09_ocr_pipeline/) | a real render→OCR→analyze pipeline; heavy CPU caps async at ~2× |
 
 ![exercise dashboard](exercises_dashboard.png)
+
+## Hypothesis lab
+
+Beyond the book: two falsifiable experiments built on ex09's real pipeline (render a PDF page,
+OCR it with a live `claude -p --model haiku` call, run a heavy pure-Python analysis). Their
+numbers are **single-run and nondeterministic** — captured once and charted from the capture —
+but the *shape* of each result is the claim. See [hypothesis/](hypothesis/).
+
+| # | hypothesis | verdict | finding |
+| --- | --- | --- | --- |
+| h01 | [optimal OCR concurrency](hypothesis/h01_ocr_concurrency/) | **CONFIRMED** | speedup saturates at a knee (~c=4), plateauing on the serial-CPU floor |
+| h02 | [GIL / process pool](hypothesis/h02_gil_process_pool/) | **CONFIRMED** | offloading CPU to a process pool beats async-only 1.28× — asyncio + multiprocessing compose |
+
+![hypothesis dashboard](hypothesis/hypothesis_dashboard.png)
 
 ## What's reproduced, and what isn't
 
@@ -87,15 +111,24 @@ crawler speedup (ex01–ex02), the concurrency sweet spot *and its reversal for 
 (ex03), lazy task scheduling and the eager factory (ex04), and the serial → batched → full-async
 ladder for the CPU+I/O workload (ex05–ex08), including the `sleep(0)` starvation failure mode.
 
-Two honest caveats. First, the **absolute speedups differ from the book** because our delay is
-50 ms (not 100 ms) and our loopback server has negligible network overhead — so the crawler
-speedup runs *higher* than the book's while the CPU+I/O speedups run *lower* (less I/O share to
-reclaim). Second, the **full-async-beats-batched-by-2× result is only hinted at**, not shown: at
-120 iterations batching and full async nearly tie, because the advantage compounds per avoided
-flush and only separates at the book's larger iteration counts — we say so in ex07 rather than
-inflating the number. The book's Figures 9-2, 9-3, and 9-7 are *request-timeline* call graphs;
-we reproduce the underlying timings and connection-wave structure but render them as summary
-charts rather than per-request Gantt traces.
+Two honest caveats on the synthetic exercises. First, the **absolute speedups differ from the
+book** because our delay is 50 ms (not 100 ms) and our loopback server has negligible network
+overhead — so the crawler speedup runs *higher* than the book's while the CPU+I/O speedups run
+*lower* (less I/O share to reclaim). Second, the **full-async-beats-batched-by-2× result is only
+hinted at**, not shown: at 120 iterations batching and full async nearly tie, because the
+advantage compounds per avoided flush and only separates at the book's larger iteration counts —
+we say so in ex07 rather than inflating the number. The book's Figures 9-2, 9-3, and 9-7 are
+*request-timeline* call graphs; we reproduce the underlying timings and connection-wave structure
+but render them as summary charts rather than per-request Gantt traces.
+
+The third caveat is louder and applies to **ex09 and the hypothesis lab**: those use a *real*
+`claude -p` call for the OCR stage, so their numbers are **single-run and nondeterministic** —
+they depend on the model, the network, and the machine, and will not reproduce to the same
+seconds. We capture one real run into each `results.json` and build the charts/READMEs from it;
+`task ch9:viz` reads those captures and never calls the model, and `task ch9:smoke` skips ex09 so
+the smoke suite stays free. Run the real pipeline deliberately with `task ch9:ocr`. The
+reproducible lesson is the *shape*: a heavy GIL-bound CPU stage caps a single-threaded async
+pipeline at ~2×, and a process pool is what breaks through it.
 
 ## 5 Whys: why a single thread can beat itself at I/O
 
@@ -121,14 +154,18 @@ buys large speedups exactly when — and only when — there is I/O wait to recl
 # one exercise
 .venv/bin/python chapter_9_asynchronous_io/ex07_full_async/ex07_full_async.py
 
-# regenerate every chart + the dashboard (reuses each exercise's own functions)
+# regenerate every chart + both dashboards (reads captures; no model calls)
 .venv/bin/python chapter_9_asynchronous_io/visualize_exercises.py
+.venv/bin/python chapter_9_asynchronous_io/hypothesis/visualize.py
 
 # via the task runner
 task ch9:run -- ex07_full_async/ex07_full_async.py
-task ch9:viz
-task ch9:smoke
+task ch9:viz                 # all charts + dashboards (free)
+task ch9:smoke               # ex01–ex08 (ex09 skipped; no token spend)
+task ch9:ocr -- --pages 6    # the REAL OCR pipeline (spends tokens via claude -p)
 ```
 
-Each script spins up its own delay-server on a free port and tears it down on exit, so there is
-nothing to start by hand and runs never collide on a port.
+Each synthetic script (ex01–ex08) spins up its own delay-server on a free port and tears it down
+on exit, so there is nothing to start by hand and runs never collide on a port. ex09 and the
+hypotheses instead shell out to a real `claude -p`; they need the `claude` CLI on `PATH` and
+spend tokens, so they are kept out of `smoke` and run on demand.

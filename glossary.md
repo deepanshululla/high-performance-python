@@ -206,6 +206,10 @@ and a foreign-function bridge — measured into the book's Table 8-1 and Table 8
 | **Pipelining / batching** | Queuing results and flushing them in concurrent bursts instead of one at a time. Amortizes the per-request delay across the whole batch for most of the async win with little code change (ex06). |
 | **`eager_task_factory`** | An opt-in factory (`loop.set_task_factory`) that runs a new task's body immediately on creation, up to its first real `await` — useful when a task often has no async work to do (e.g. a cache hit) (ex04). |
 | **Connection limit** | The cap on simultaneous in-flight requests (client- or server-side). Sets the wave size and the concurrency sweet spot (~100–250); past it, event-loop dispatch becomes the bottleneck and, for fast requests, runtime *reverses* (ex03). |
+| **Async subprocess** | Running an external command via `asyncio.create_subprocess_exec` and `await`ing it, so many subprocesses run concurrently while the event loop stays free. ex09 OCRs PDF pages by awaiting many `claude -p` processes at once — real I/O, not a simulated delay. |
+| **`run_in_executor` / `ProcessPoolExecutor`** | The bridge from asyncio to real parallelism: `loop.run_in_executor(pool, fn, *args)` runs a blocking/CPU function in a thread or **process** pool and `await`s the result. With a *process* pool, CPU work runs in separate interpreters (separate GILs), truly in parallel, while the loop handles I/O (h02). |
+| **GIL (in an async context)** | The Global Interpreter Lock means a single process runs one thread of Python bytecode at a time. asyncio is concurrency on *one* thread, so it overlaps I/O with I/O but **cannot** overlap CPU with CPU — a heavy pure-Python stage serializes and floors the pipeline (ex09, h01), which only multiple processes can lower (h02). |
+| **CPU+I/O+CPU pipeline** | A per-item pipeline whose stages alternate character — e.g. render (CPU) → OCR (I/O) → analyze (CPU). Async hides the I/O stage behind other items' work, but the CPU stages still serialize under the GIL, so the efficient structure pairs an event loop (for I/O) with a process pool (for CPU) (ex09 and the hypothesis lab). |
 
 ---
 

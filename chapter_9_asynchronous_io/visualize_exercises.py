@@ -10,6 +10,7 @@ Run: .venv/bin/python chapter_9_asynchronous_io/visualize_exercises.py
 """
 import argparse
 import importlib.util
+import json
 import pathlib
 import sys
 
@@ -182,9 +183,37 @@ def chart_ex08(base):
     save(fig, str(HERE / "ex08_sleep_zero" / "x.py"))
 
 
+def chart_ex09(base):
+    """ex09 reads its captured results.json (a real claude -p run); it never calls the model."""
+    results = HERE / "ex09_ocr_pipeline" / "results.json"
+    if not results.exists():
+        print("  ex09: no results.json (run ex09_ocr_pipeline.py --pages 6); skipping")
+        return
+    d = json.loads(results.read_text())
+    s = d["serial"]["stages"]
+    fig, (axL, axR) = plt.subplots(1, 2, figsize=(7.2, 3.6))
+    # Left: serial stage breakdown (stacked) — CPU is now a real share.
+    axL.bar(["serial"], [s["ocr"]], color=WARN, label="OCR (I/O)")
+    axL.bar(["serial"], [s["analyze"]], bottom=[s["ocr"]], color=GOOD, label="analyze (CPU)")
+    axL.bar(["serial"], [s["render"]], bottom=[s["ocr"] + s["analyze"]], color=SLOW, label="render")
+    axL.set_ylabel("seconds")
+    axL.set_title("serial stages")
+    axL.legend(fontsize=7)
+    # Right: serial total vs async pipeline.
+    bars = axR.bar(["serial", "async\n(c=%d)" % d["async"]["concurrency"]],
+                   [d["serial"]["total"], d["async"]["total"]], color=[WARN, GOOD])
+    for b in bars:
+        axR.text(b.get_x() + b.get_width() / 2, b.get_height() * 1.01,
+                 f"{b.get_height():.0f}s", ha="center", va="bottom", fontsize=9)
+    axR.set_title("%.2fx (heavy CPU caps it)" % d["speedup"])
+    fig.suptitle("ex09 OCR pipeline — single real claude -p run", fontsize=11, fontweight="bold")
+    save(fig, str(HERE / "ex09_ocr_pipeline" / "x.py"))
+
+
 CHARTS = {
     "ex01": chart_ex01, "ex02": chart_ex02, "ex03": chart_ex03, "ex04": chart_ex04,
     "ex05": chart_ex05, "ex06": chart_ex06, "ex07": chart_ex07, "ex08": chart_ex08,
+    "ex09": chart_ex09,
 }
 
 
@@ -196,8 +225,9 @@ def build_dashboard():
         "ex03": "ex03_concurrency_sweep", "ex04": "ex04_lazy_scheduling",
         "ex05": "ex05_serial_cpu_io", "ex06": "ex06_batched_pipeline",
         "ex07": "ex07_full_async", "ex08": "ex08_sleep_zero",
+        "ex09": "ex09_ocr_pipeline",
     }
-    fig, axes = plt.subplots(2, 4, figsize=(18, 8))
+    fig, axes = plt.subplots(3, 3, figsize=(18, 12))
     for ax, (key, folder) in zip(axes.flat, folders.items()):
         png = HERE / folder / "chart.png"
         ax.axis("off")

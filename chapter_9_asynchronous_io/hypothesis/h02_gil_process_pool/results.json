@@ -1,0 +1,13 @@
+{
+  "pdf": "sample.pdf",
+  "n_pages": 6,
+  "model": "haiku",
+  "concurrency": 4,
+  "workers": 4,
+  "serial_total": 54.939780208747834,
+  "serial_cpu": 17.75474229082465,
+  "async_inline": 23.375304583925754,
+  "async_pooled": 18.28934458317235,
+  "pool_gain": 1.2780832291515187,
+  "verdict": "CONFIRMED"
+}
