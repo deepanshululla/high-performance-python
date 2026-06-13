@@ -90,6 +90,11 @@ tasks:
     dir: website
     cmds: [npm run serve]
 
+  docs:clear:
+    desc: Clear the Docusaurus cache (fixes dev-server ChunkLoadError after a re-sync)
+    dir: website
+    cmds: [npm run clear]
+
   # --- Housekeeping --------------------------------------------------------
   clean:
     desc: Remove compiled extensions and the docs build (keeps .venv and node_modules)
