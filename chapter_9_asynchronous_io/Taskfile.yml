@@ -1,0 +1,36 @@
+# Chapter 9 — Asynchronous I/O.
+# Standalone:  cd chapter_9_asynchronous_io && task
+# From root:   task ch9:<name>
+# Each script starts its own delay-server on a free port and tears it down on exit.
+version: '3'
+
+vars:
+  ROOT:
+    sh: cd .. && pwd
+  PY: '{{.ROOT}}/.venv/bin/python'
+
+tasks:
+  default:
+    desc: List Chapter 9 tasks
+    cmds: [task --list]
+    silent: true
+
+  run:
+    desc: 'Run a Chapter 9 script: task ch9:run -- ex07_full_async/ex07_full_async.py'
+    cmds: ['{{.PY}} {{.CLI_ARGS}}']
+
+  viz:
+    desc: Regenerate Chapter 9 charts + dashboard
+    cmds: ['{{.PY}} visualize_exercises.py']
+
+  smoke:
+    desc: Run every Chapter 9 exercise (fail on first error)
+    cmds:
+      - |
+        ran=0
+        for s in ex*/ex*.py; do
+          [ -f "$s" ] || continue
+          echo "== $s =="; {{.PY}} "$s" >/dev/null || { echo "FAILED: $s"; exit 1; }
+          ran=$((ran+1))
+        done
+        echo "ok — $ran scripts passed"

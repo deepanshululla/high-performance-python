@@ -1,0 +1,4 @@
+# Python bytecode caches — regenerated on every run.
+# The scripts, READMEs, and chart.png / exercises_dashboard.png assets ARE tracked.
+__pycache__/
+*.pyc

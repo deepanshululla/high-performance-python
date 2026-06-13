@@ -187,6 +187,28 @@ and a foreign-function bridge — measured into the book's Table 8-1 and Table 8
 
 ---
 
+## Asynchronous I/O (Chapter 9)
+
+| Term | Definition |
+| --- | --- |
+| **I/O-bound** | A program whose runtime is dominated by *waiting* for input/output (network, disk, database) rather than by computation. The opposite of CPU-bound, and the only regime where async I/O helps (ex01, ex05). |
+| **I/O wait** | The time a program is paused waiting for the kernel to complete a read/write on a device. The CPU is idle but the program cannot proceed — ~77% of the serial CPU+I/O workload (ex05). The reclaimable resource the whole chapter targets. |
+| **Concurrency vs. parallelism** | Concurrency interleaves many tasks on **one** thread, sharing resources by filling each task's dead time with another's work; parallelism (Chapter 10) gives each task its **own** resources to run literally simultaneously. Async I/O is concurrency. |
+| **Event loop** | The scheduler at the heart of async code: a list of ready coroutines that it runs one at a time, switching between them whenever one yields control at an `await`. `asyncio.run(coro)` starts a temporary one (ex01–ex08). |
+| **Coroutine** | A function defined with `async def`. Implemented like a generator — calling it builds an object and runs **none** of its body; it advances only when the event loop drives it with `send()` (ex04). |
+| **`await`** | Suspends the current coroutine until the awaited thing is ready, handing control back to the event loop so other coroutines can run. Functionally a `yield` that the loop resumes when data arrives. |
+| **`Future` / `Task`** | A promise of a result that isn't ready yet. `tg.create_task(coro)` schedules a coroutine as a `Task`; it does not run on creation, only when the loop next gets a turn (ex04). |
+| **`TaskGroup`** | A 3.11+ context manager that collects tasks and, on exit (`__aexit__`, itself an `await`), guarantees they all finish or are cancelled. That exit is often the *first* yield in a creation loop, which is when the queued tasks finally run (ex02, ex04). |
+| **`aiohttp` / `ClientSession`** | The async HTTP library used here; `ClientSession` pools and caches connections (defaulting to 100 simultaneous), so requests run in waves of that size (ex02). `httpx` is the HTTP/2-capable alternative. |
+| **`asyncio.gather` vs. `TaskGroup`** | Two ways to run many tasks. `gather` returns results in order and (by default) keeps going if one fails; `TaskGroup` gives structured, fail-fast cancellation. ex06 uses `gather`, ex02/ex07 use `TaskGroup`. |
+| **`await asyncio.sleep(0)`** | A yield that doesn't sleep: it schedules a zero-delay wakeup and suspends, forcing one trip through the event loop so pending I/O can advance. Essential in CPU-bound loops that otherwise never `await` (ex07, ex08). |
+| **Cooperative scheduling** | asyncio switches tasks only at explicit `await` points (never preemptively), so code between two `await`s is race-free without locks — but a CPU loop that never yields starves every other task (ex08). |
+| **Pipelining / batching** | Queuing results and flushing them in concurrent bursts instead of one at a time. Amortizes the per-request delay across the whole batch for most of the async win with little code change (ex06). |
+| **`eager_task_factory`** | An opt-in factory (`loop.set_task_factory`) that runs a new task's body immediately on creation, up to its first real `await` — useful when a task often has no async work to do (e.g. a cache hit) (ex04). |
+| **Connection limit** | The cap on simultaneous in-flight requests (client- or server-side). Sets the wave size and the concurrency sweet spot (~100–250); past it, event-loop dispatch becomes the bottleneck and, for fast requests, runtime *reverses* (ex03). |
+
+---
+
 ## Cross-cutting ideas
 
 These recur in every chapter, so they're collected here rather than repeated.

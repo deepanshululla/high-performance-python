@@ -24,6 +24,7 @@ includes:
   ch6: {taskfile: ./chapter_6_matrix_and_vector_computation/Taskfile.yml, dir: ./chapter_6_matrix_and_vector_computation}
   ch7: {taskfile: ./chapter_7_pandas_dask_polars/Taskfile.yml, dir: ./chapter_7_pandas_dask_polars}
   ch8: {taskfile: ./chapter_8_compiling_to_c/Taskfile.yml, dir: ./chapter_8_compiling_to_c}
+  ch9: {taskfile: ./chapter_9_asynchronous_io/Taskfile.yml, dir: ./chapter_9_asynchronous_io}
 
 tasks:
   default:
@@ -52,6 +53,7 @@ tasks:
       - task: ch6:viz
       - task: ch7:viz
       - task: ch8:viz
+      - task: ch9:viz
 
   smoke:all:
     desc: Run every exercise in every chapter (slow — Chapter 8 builds extensions)
@@ -63,6 +65,7 @@ tasks:
       - task: ch6:smoke
       - task: ch7:smoke
       - task: ch8:smoke
+      - task: ch9:smoke
 
   # --- Documentation site (website/) ---------------------------------------
   docs:
