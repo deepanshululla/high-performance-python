@@ -213,6 +213,32 @@ and a foreign-function bridge — measured into the book's Table 8-1 and Table 8
 
 ---
 
+## Multiprocessing (Chapter 10)
+
+| Term | Definition |
+| --- | --- |
+| **CPU-bound** | A program whose runtime is dominated by computation, not waiting. The regime where multiprocessing (not async) helps: split the work across processes so several cores compute at once (ex01, ex02). |
+| **Process vs. thread** | A thread shares its parent's memory and GIL (so CPython threads can't run Python bytecode in parallel); a **process** is a separate interpreter with its own memory and GIL, so processes *do* run in parallel — at the cost of not sharing state for free (ex01). |
+| **Embarrassingly parallel** | A problem that splits into independent pieces needing no communication between workers (Monte Carlo pi). The easy case: near-linear speedup with almost no penalty as workers are added (ex01, ex02). |
+| **`multiprocessing.Pool`** | A pool of worker processes that share a batch of work via `map`. The default tool for CPU-bound parallelism; `multiprocessing.dummy.Pool` is the same API backed by *threads* (useful only for I/O or GIL-releasing code like numpy) (ex01, ex03). |
+| **`chunksize`** | How many work items `Pool.map` ships per IPC message. Too small drowns in pickling overhead; too large leaves cores idle on the final uneven round. The default (≈ items ÷ 4 ÷ workers) sits on the broad sweet spot (ex05). |
+| **Amdahl's law** | The cap on speedup from parallelism: bounded by the fraction of work that can be parallelized and the number of cores that can run it. Visible as the scaling curve flattening at the core ceiling even on a perfectly even job (ex02). |
+| **Performance vs. efficiency cores** | Apple Silicon mixes fast P-cores with slower E-cores, so "10 cores" don't give a 10× ceiling — the E-cores under-pull on a tight compute loop, capping clean speedup near ~7–8× (ex02). The book's analogous effect is hyperthreads sharing silicon. |
+| **GIL (released by numpy)** | numpy does array arithmetic in C with the GIL dropped, so *threads* can overlap it — the one case where threads speed up otherwise-CPU-bound Python. But the numpy RNG stays GIL-bound, capping the thread gain (ex03). |
+| **Joblib (`Parallel`/`delayed`, `Memory`)** | A higher-level wrapper over multiprocessing: `Parallel(n_jobs=)(delayed(fn)(x) for x in …)` is a one-line pool, and `Memory` caches results to disk by argument across runs. The cache keys on arguments, so identical-argument calls collide (ex04). |
+| **`Queue` / poison pill** | A `multiprocessing.Queue` passes pickled objects between processes; a **poison pill** is a sentinel value that tells a blocking worker to shut down. The pickling+locking cost makes a queue lose to serial for light per-item work (ex06). |
+| **IPC (interprocess communication)** | Any sharing of state between processes — through a pipe, a manager proxy, or shared memory. Always carries a cost; the chapter's theme is that the naive share-nothing solution often beats clever IPC (ex06, ex07). |
+| **Early-exit flag** | A shared byte one worker sets to tell the others to stop (a factor was found). Helps when there *is* something to stop for (nonprimes); pure overhead when there isn't (primes), since the poll cost is paid with no payoff (ex07). |
+| **`Manager` / proxy object** | `multiprocessing.Manager()` shares high-level Python objects (dicts, lists, `Value`) by routing every access through a separate manager process. Flexible but slow — each access is an RPC, making a `manager.Value` flag slower than a serial sweep (ex07). |
+| **`RawValue` / `mmap` flag** | Lock-free shared memory: a `RawValue` is a bare ctypes primitive, `mmap(-1, n)` an anonymous shared block. Workers read/write them directly with almost no overhead — the fastest way to share a flag, safe here only because the flag flips one direction (ex07). |
+| **Redis flag** | A flag parked in an external Redis key/value server, polled over TCP. The slowest sharing medium (each poll is a network round-trip — ~2× serial on primes), but **language-agnostic and inspectable**: any tool, language, or machine can read it, and a human can watch it at `redis-cli`. Reach for it for that visibility, not for speed (ex07, run against a Docker container). A forked worker must open its *own* connection — a socket shared across `fork` corrupts. |
+| **Shared `multiprocessing.Array`** | A block of bytes allocated in shared memory; wrap numpy around it with `np.frombuffer(...).reshape(...)` to share a large array across processes with **no copy** — avoiding the N× RAM and pickling a copy-per-worker would cost (ex08). |
+| **Atomicity / lost update** | `value += 1` is a non-atomic read-add-write; concurrent processes interleave the steps and overwrite each other, silently losing updates (≈69% at 400k). A `Lock` makes the increment atomic and correct (ex09). |
+| **`Lock` / `Value` / `RawValue`** | A `multiprocessing.Value` carries its own internal lock; a `RawValue` has none. Under one external `Lock` the `RawValue` is faster because it doesn't pay for a redundant second lock (ex09). |
+| **Start method: fork vs. spawn** | `fork` clones the parent (so children inherit its mutated globals — what the book's shared-state examples assume); `spawn` (the macOS/3.14 default) boots a fresh interpreter that re-imports the module, losing those globals and starting a pool several× slower (h01). |
+
+---
+
 ## Cross-cutting ideas
 
 These recur in every chapter, so they're collected here rather than repeated.

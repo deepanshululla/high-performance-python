@@ -1,0 +1,54 @@
+# Chapter 10 — Multiprocessing.
+# Standalone:  cd chapter_10_multiprocessing && task
+# From root:   task ch10:<name>
+# Shared-state exercises force a fork context so they behave as the book (Linux) describes;
+# see _mp.py and the h01 hypothesis for why macOS's default spawn would break them.
+version: '3'
+
+vars:
+  ROOT:
+    sh: cd .. && pwd
+  PY: '{{.ROOT}}/.venv/bin/python'
+
+tasks:
+  default:
+    desc: List Chapter 10 tasks
+    cmds: [task --list]
+    silent: true
+
+  run:
+    desc: 'Run a Chapter 10 script: task ch10:run -- ex07_ipc_flag/ex07_ipc_flag.py'
+    cmds: ['{{.PY}} {{.CLI_ARGS}}']
+
+  redis-up:
+    desc: Start the Redis container ex07's Redis-flag approach talks to (host port 6380)
+    cmds:
+      - docker rm -f hpp-redis 2>/dev/null || true
+      - docker run -d --name hpp-redis -p 6380:6379 redis:7-alpine
+      - 'echo "Redis up on localhost:6380 — ex07 will now include the Redis flag approach."'
+
+  redis-down:
+    desc: Stop and remove the ex07 Redis container
+    cmds:
+      - docker rm -f hpp-redis 2>/dev/null || true
+      - 'echo "Redis container removed; ex07 will skip the Redis approach."'
+
+  viz:
+    desc: Regenerate Chapter 10 charts + dashboard + the hypothesis chart (ex07 re-measures, ~70s)
+    cmds:
+      - '{{.PY}} visualize_exercises.py'
+      - '{{.PY}} hypothesis/h01_fork_vs_spawn/plot.py'
+
+  smoke:
+    desc: Run every Chapter 10 exercise as a fast correctness check (ex07 dominates, ~70s)
+    cmds:
+      - |
+        ran=0
+        for s in ex*/ex*.py; do
+          [ -f "$s" ] || continue
+          echo "== $s =="; {{.PY}} "$s" >/dev/null || { echo "FAILED: $s"; exit 1; }
+          ran=$((ran+1))
+        done
+        echo "== hypothesis/h01_fork_vs_spawn/benchmark.py =="
+        {{.PY}} hypothesis/h01_fork_vs_spawn/benchmark.py >/dev/null || { echo "FAILED: h01"; exit 1; }
+        echo "ok — $ran exercises + h01 passed"
