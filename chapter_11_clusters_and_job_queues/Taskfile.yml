@@ -1,0 +1,59 @@
+# Chapter 11 — Clusters and Job Queues.
+# Standalone:  cd chapter_11_clusters_and_job_queues && task
+# From root:   task ch11:<name>
+# ex01-ex03 + h01 start a local IPython Parallel cluster; ex04-ex07 need the Redis
+# container (task ch11:redis-up); ex09 builds and runs a Docker container.
+version: '3'
+
+vars:
+  ROOT:
+    sh: cd .. && pwd
+  PY: '{{.ROOT}}/.venv/bin/python'
+
+tasks:
+  default:
+    desc: List Chapter 11 tasks
+    cmds: [task --list]
+    silent: true
+
+  run:
+    desc: 'Run a Chapter 11 script: task ch11:run -- ex06_pubsub_vs_consumer_group/ex06_pubsub_vs_consumer_group.py'
+    cmds: ['{{.PY}} {{.CLI_ARGS}}']
+
+  redis-up:
+    desc: Start the Redis container the queue/pubsub exercises talk to (host port 6380)
+    cmds:
+      - docker rm -f hpp-redis 2>/dev/null || true
+      - docker run -d --name hpp-redis -p 6380:6379 redis:7-alpine
+      - 'echo "Redis up on localhost:6380 — ex04-ex07 will now run."'
+
+  redis-down:
+    desc: Stop and remove the Redis container
+    cmds:
+      - docker rm -f hpp-redis 2>/dev/null || true
+      - 'echo "Redis container removed; ex04-ex07 will skip cleanly."'
+
+  docker-build:
+    desc: Pre-build the ex09 diffusion image (otherwise ex09 builds it on first run)
+    cmds:
+      - docker build -t hpp-ch11-diffusion:latest ex09_docker_overhead
+
+  viz:
+    desc: Regenerate Chapter 11 charts + dashboard + the hypothesis chart (re-measures; clusters + Redis + Docker, ~2 min)
+    cmds:
+      - '{{.PY}} visualize_exercises.py'
+      - '{{.PY}} hypothesis/h01_ipython_vs_pool/plot.py'
+
+  smoke:
+    desc: Run every Chapter 11 exercise as a fast correctness check (clusters dominate; Redis/Docker exercises skip cleanly if down)
+    cmds:
+      - |
+        ran=0
+        for s in ex*/ex*.py; do
+          [ -f "$s" ] || continue
+          echo "== $s =="; {{.PY}} "$s" >/dev/null || { echo "FAILED: $s"; exit 1; }
+          ran=$((ran+1))
+        done
+        echo "== hypothesis/h01_ipython_vs_pool/benchmark.py =="
+        {{.PY}} hypothesis/h01_ipython_vs_pool/benchmark.py >/dev/null || { echo "FAILED: h01"; exit 1; }
+        echo "ok — $ran exercises + h01 passed"

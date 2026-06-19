@@ -239,6 +239,51 @@ and a foreign-function bridge — measured into the book's Table 8-1 and Table 8
 
 ---
 
+## Clusters and Job Queues (Chapter 11)
+
+| Term | Definition |
+| --- | --- |
+| **Cluster** | A collection of machines (*nodes*) working together as one larger system. Bought for scale, parallel disk I/O, or resilience — never for free: the real cost is system administration, not hardware. The book's advice is to exhaust one machine (more cores, more RAM) before clustering. |
+| **IPython Parallel** | A cluster framework that drives remote *engines* (full IPython kernels) over ZeroMQ from an interactive session. `apply_sync`/`map_sync` run a callable on the engines; `push`/`pull` move data. On one machine it matches a `Pool`'s compute but starts ~590× slower — its value is remote engines and interactivity (ex01, h01). |
+| **Engine / controller** | An *engine* is a worker kernel that runs your code; the *controller* (hub + schedulers) distributes work to engines and collects results. Starting them is the cluster's large fixed cost (~7 s for 8 engines here) (ex01). |
+| **Direct view vs. load-balanced view** | A *direct view* (`rc[:]`) statically splits work into one contiguous chunk per engine; a *load-balanced view* hands tasks out one at a time to whichever engine is free. On uneven work the static split waits on its straggler while the scheduler keeps all engines busy — the cluster-scale `chunksize` trade-off (ex03). |
+| **Round-trip latency** | The fixed cost of one message to the cluster and back (~3.8 ms to one engine, ~9.5 ms to all here). Because it is paid *per call*, performance is governed by the number of messages, not the compute — so chatty per-item calls lose badly to batching (ex02). |
+| **Work queue** | A buffer (here a Redis list) between producers and consumers: producers push jobs, consumers pull when ready. Decouples the two, so you scale throughput by adding consumers (near-linear until cores run out) and absorb bursts as queue depth rather than dropped work — provided each job is heavy enough to dwarf the fetch cost (ex04, ex05). |
+| **Producer / consumer** | The two roles around a queue: a *producer* enqueues work and returns immediately; a *consumer* dequeues and processes at its own pace. The imbalance between their rates is exactly what the queue buffers (ex04, ex05). |
+| **Pub/sub (fan-out)** | A topology where every subscriber receives an identical copy of every published message (the newspaper model). Use it to broadcast an event to independent reactors; it does K× the delivery work for K subscribers. Redis pub/sub is fire-and-forget — subscribers must be live when the message is published (ex06). |
+| **Consumer group (load balancing)** | A topology where consumers in one group *share* a stream — each message goes to exactly one consumer (the household model). Use it to distribute work; the broker self-balances by giving the next message to whichever consumer asks. Redis Streams (`XREADGROUP`) provide it, with persistence and acknowledgement (ex06). |
+| **Delivery guarantee (at-most-once / at-least-once)** | What a queue promises when a consumer crashes mid-job. *At-most-once* (read removes the message) may **lose** in-flight work but never duplicates; *at-least-once* (read leaves it pending until acknowledged, then reclaims) never loses but may **duplicate**. No broker can guarantee exactly-once, so you pick the failure your workload tolerates (ex07). |
+| **Acknowledgement (ack) / pending list** | The signal a consumer sends when it *finishes* a message, separate from receiving it. Until acked, a Streams message sits in the group's *pending list* and can be reclaimed (`XAUTOCLAIM`) after a crash. The ack is what buys at-least-once delivery, at the cost of a round-trip and the bookkeeping (ex07). |
+| **Serialization (JSON / msgpack / pickle)** | Turning a message into bytes and back. JSON is human-readable and language-agnostic but ~2.3× slower and ~1.3× larger here; msgpack is compact and portable but binary; pickle is fast but Python-only and unsafe on untrusted input. The book defaults to readable JSON because the penalty is negligible next to network and compute (ex08). |
+| **Docker / OS-level virtualization** | Containers package code with its environment for reproducibility. On Linux, Docker uses kernel `cgroups` and shares the host kernel, so CPU/memory overhead is near-zero; on macOS/Windows it runs a Linux VM under a hypervisor, so CPU work is measurably slower (~5× here). Use Docker on a Mac for reproducibility; benchmark on Linux (ex09). |
+| **`cgroups`** | The Linux kernel feature that partitions processes with resource limits, letting a container share the host kernel directly with almost no overhead. Its absence on macOS/Windows — where a hardware-virtualized Linux VM stands in — is why Docker overhead differs by OS (ex09). |
+
+---
+
+## Using less RAM (Chapter 12)
+
+| Term | Definition |
+| --- | --- |
+| **Object overhead** | Every CPython object (an `int`, a `str`) carries a reference count, a type pointer, and GC bookkeeping — ~28 bytes for a small int — *before* its value. A `list` of 100M distinct ints costs ~5× a numpy array because it stores 100M of these wrapped objects behind 100M pointers, where numpy stores raw 8-byte primitives in one buffer (ex01). |
+| **`array` / numpy buffer** | A contiguous block of raw C primitives with no per-element Python object; the cheap way to store many numbers. Indexing one back into Python rebuilds an `int` object, so the saving holds only for bulk operations or handing the buffer to another process / C extension (ex01). |
+| **Lazy allocation (`np.zeros`)** | The OS maps zero pages lazily, so `np.zeros` reports ~0 RAM until a page is written; `np.ones`/`np.arange` fill eagerly and pay up front. Size budgets from `np.zeros` are a trap — measure real usage with `%memit`/RSS, not `nbytes` (ex01). |
+| **NumPy temporaries** | A vectorised expression allocates a full-size intermediate array per sub-operation, so peak RAM scales with the number of operations, not the result. The cross-entropy formula peaks at ~2× its inputs in temporaries alone (ex02). |
+| **NumExpr** | Evaluates an expression string in small cache-sized chunks across threads, so no large temporary is ever materialised — roughly halving peak RAM and running several× faster than direct NumPy. Pandas `eval`/`query` use it when installed and silently fall back to slow Python when not (ex02). |
+| **`sys.getsizeof` (shell only)** | Reports only a container's own bytes — the pointer array — never its contents; a list of one 99-byte string reads 64 bytes. Undercounts a 10M-int list ~4.5× (ex03). |
+| **`pympler.asizeof` vs RSS** | `asizeof` walks the object graph to estimate deep size (slow, and blind to memory inside C libraries); RSS / `%memit` observes what the process actually took. For a list of ints the two agree (~390 MiB); RSS is the truth for real apps (ex03). |
+| **PEP 393 (flexible string width)** | A `str` stores 1, 2, or 4 bytes per character chosen by its *widest* character — ASCII/Latin-1 is as cheap as `bytes`, but one emoji promotes the whole string to 4 bytes/char. Width is uniform per string so indexing stays O(1) (ex04). |
+| **Trie (prefix tree) / `marisa_trie`** | Stores strings by folding shared prefixes into single branches, so a large static string set compresses dramatically. Build once, save, load read-only: a loaded trie held 2M tokens in 4.3 MiB vs a set's 249 MiB (ex05). Its win has two parts — storing bytes not `str` objects (a flat ~13× here) and folding shared prefixes (a further ~4× on structured data) (h01). |
+| **`bisect` on a sorted list** | A sorted list queried with binary search gives O(log n) lookups at the same RAM as the list and no extra structure — the fair baseline a fancier container must beat. A linear `in` scan is O(n) and catastrophic (~14 ms/lookup over 2M) (ex05). |
+| **`DictVectorizer` vs `FeatureHasher`** | Two ways to vectorise text: `DictVectorizer` learns and stores a full vocabulary (lossless, reversible, two-pass, wide matrix); `FeatureHasher` hashes tokens into a fixed-width matrix (lossy, irreversible, one-pass, no vocabulary). Equal accuracy (0.921 = 0.921), but the hasher builds far faster and stores nothing (ex06). |
+| **Sparse matrix (CSR)** | Stores only non-zero values plus their indices; everything else is an implicit zero. Multiply is O(nnz), so it beats dense only at low density (crossover ~5%), but it saves *memory* much longer (12 bytes/non-zero vs 8/cell breaks even near two-thirds density) (ex07). |
+| **Probabilistic data structure** | Trades accuracy for memory by storing a compact *sketch* that answers one narrow question (a count, "seen it?", a cardinality) instead of the data — lossy compression that keeps only what the question needs (ex08–ex10). |
+| **Morris counter** | Stores an exponent and represents the count as `2**exponent`, incrementing with probability `1/2**exponent` — counting to ~`5.8e76` in one byte. Nearly unbiased on average but with a large, magnitude-independent ~70% (≈1/√2) relative spread per counter (ex08). |
+| **Bloom filter** | Sets `k` hashed bits per item; membership tests all `k`. No false negatives, a tunable capacity-dependent false-positive rate (50k @ 0.05% → 791,015 bits, 11 hashes), independent of item size. Overfilling balloons the error; a **scaling** variant chains tightening sub-filters to hold the bound (ex09). |
+| **LogLog / HyperLogLog** | Estimate cardinality from the longest run of leading zeros across many hash-indexed registers. A single register is hopeless; HyperLogLog's harmonic averaging reaches error ≈ `1.04/√m` for `m` registers — so more RAM buys lower error, not more capacity (which is effectively unbounded) (ex10). |
+| **K-Minimum-Values (KMV)** | Keeps the `k` smallest unique hashes and infers cardinality from their spacing; idempotent (re-adding an item changes nothing). A different sketch for the same uniques question, accurate to ~1.5% at k=1024 (ex10). |
+
+---
+
 ## Cross-cutting ideas
 
 These recur in every chapter, so they're collected here rather than repeated.

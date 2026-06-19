@@ -1,0 +1,41 @@
+# Chapter 12 — Using Less RAM.
+# Standalone:  cd chapter_12_using_less_ram && task
+# From root:   task ch12:<name>
+# Memory figures are peak RSS measured in a fresh spawned process per allocation (see _mem.py),
+# the programmatic equivalent of the book's "restart the shell, then %memit".
+version: '3'
+
+vars:
+  ROOT:
+    sh: cd .. && pwd
+  PY: '{{.ROOT}}/.venv/bin/python'
+
+tasks:
+  default:
+    desc: List Chapter 12 tasks
+    cmds: [task --list]
+    silent: true
+
+  run:
+    desc: 'Run a Chapter 12 script: task ch12:run -- ex05_text_containers/ex05_text_containers.py'
+    cmds: ['{{.PY}} {{.CLI_ARGS}}']
+
+  viz:
+    desc: Regenerate Chapter 12 charts + dashboard + the hypothesis chart (re-measures RSS, ~2-3 min)
+    cmds:
+      - '{{.PY}} visualize_exercises.py'
+      - '{{.PY}} hypothesis/h01_trie_needs_prefixes/plot.py'
+
+  smoke:
+    desc: Run every Chapter 12 exercise as a fast correctness check (ex01/ex02 allocate GBs transiently)
+    cmds:
+      - |
+        ran=0
+        for s in ex*/ex*.py; do
+          [ -f "$s" ] || continue
+          echo "== $s =="; {{.PY}} "$s" >/dev/null || { echo "FAILED: $s"; exit 1; }
+          ran=$((ran+1))
+        done
+        echo "== hypothesis/h01_trie_needs_prefixes/benchmark.py =="
+        {{.PY}} hypothesis/h01_trie_needs_prefixes/benchmark.py >/dev/null || { echo "FAILED: h01"; exit 1; }
+        echo "ok — $ran exercises + h01 passed"
