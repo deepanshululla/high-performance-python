@@ -124,17 +124,11 @@ def at_least_once(r):
 
 def measure():
     with ephemeral_redis() as r:
-        if r is None:
-            return None
         return {"at_most_once": at_most_once(r), "at_least_once": at_least_once(r)}
 
 
 def main():
     res = measure()
-    if res is None:
-        print("[skipped] no Redis reachable and Docker unavailable — cannot run an "
-              "ephemeral broker.")
-        return
     crashes = N_MESSAGES // CRASH_EVERY
     print(f"{N_MESSAGES} messages, a consumer crash after every {CRASH_EVERY}th "
           f"({crashes} crashes), each crash landing after the work but before the confirm")

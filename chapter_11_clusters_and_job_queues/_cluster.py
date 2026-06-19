@@ -14,10 +14,11 @@ topology lessons to two concrete, runnable things:
   counts) when you want to expose a scheduler's stragglers.
 
 * A **Redis server** as the message broker. The queue and pub/sub exercises talk
-  to a real Redis (the same Docker container Chapter 10 used for its Redis flag,
-  mapped to host port 6380 to avoid colliding with any Redis on the default
-  6379). `task ch11:redis-up` starts it; exercises that need it call
-  `require_redis()` and skip cleanly with a friendly message if it is down.
+  to a real `redis:7-alpine` mapped to host port 6380 (to avoid colliding with any
+  Redis on the default 6379). They manage it themselves via the `ephemeral_redis()`
+  context manager below: it spins the container up when the exercise starts and
+  tears it down when it finishes, so nothing has to be started by hand and nothing
+  is left running afterwards. Requires Docker.
 
 Correctness anchor: any pi estimate built from these blocks must land within
 PI_TOLERANCE of math.pi, asserted everywhere, so a distributed split that loses
@@ -139,43 +140,33 @@ def _redis_port():
     return urllib.parse.urlparse(REDIS_URL).port or 6379
 
 
-def _docker_available():
-    try:
-        subprocess.run(["docker", "info"], capture_output=True, timeout=10, check=True)
-        return True
-    except Exception:
-        return False
-
-
 @contextlib.contextmanager
-def ephemeral_redis(wait_s=15):
-    """Yield a Redis client, managing a throwaway container for the test's lifetime.
+def ephemeral_redis(wait_s=20):
+    """Start a throwaway Redis container on entry, yield a client, remove it on exit.
 
-    The broker exercises wrap their measurement in this so they need no manual
-    setup and leave nothing running afterwards:
+    The broker exercises wrap their measurement in this so the broker lives exactly
+    as long as the test does — no manual setup, nothing left running afterwards:
 
-      * If a Redis is already reachable at REDIS_URL — one you started yourself, or
-        via `task ch11:redis-up` — reuse it and leave it completely alone (it is
-        not ours to remove).
-      * Otherwise, if Docker is available, start a throwaway `redis:7-alpine`
-        container, wait for it to accept connections, yield a client, and ALWAYS
-        remove the container on exit — even if the exercise raises.
-      * If neither a Redis nor Docker is available, yield None so the caller can
-        skip cleanly (this keeps the smoke target green on a machine with no
-        Docker).
+      * On entry: remove any stale container of the same name, start a fresh
+        `redis:7-alpine` mapped to REDIS_URL's port, and wait until it accepts
+        connections.
+      * Yield a client for the test to use.
+      * On exit (always, even if the test raises): remove the container.
+
+    This requires Docker; it does not reuse an already-running Redis and it does
+    not skip — if the container cannot be started or fails to become ready, it
+    raises so the failure is visible rather than silently bypassed.
     """
-    if redis_available():
-        yield get_redis()       # reuse an existing server; do not tear it down
-        return
-    if not _docker_available():
-        yield None              # nothing to talk to and nothing to start
-        return
-
     port = _redis_port()
     subprocess.run(["docker", "rm", "-f", EPHEMERAL_CONTAINER], capture_output=True)
-    subprocess.run(["docker", "run", "-d", "--name", EPHEMERAL_CONTAINER,
-                    "-p", f"{port}:6379", "redis:7-alpine"],
-                   check=True, capture_output=True)
+    started = subprocess.run(
+        ["docker", "run", "-d", "--name", EPHEMERAL_CONTAINER,
+         "-p", f"{port}:6379", "redis:7-alpine"],
+        capture_output=True, text=True)
+    if started.returncode != 0:
+        raise RuntimeError(
+            f"could not start the ephemeral Redis container (is Docker running, and "
+            f"is port {port} free?): {started.stderr.strip()}")
     try:
         t0 = time.perf_counter()
         while time.perf_counter() - t0 < wait_s:

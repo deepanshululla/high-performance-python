@@ -1,8 +1,9 @@
 # Chapter 11 — Clusters and Job Queues.
 # Standalone:  cd chapter_11_clusters_and_job_queues && task
 # From root:   task ch11:<name>
-# ex01-ex03 + h01 start a local IPython Parallel cluster; ex04-ex07 need the Redis
-# container (task ch11:redis-up); ex09 builds and runs a Docker container.
+# ex01-ex03 + h01 start a local IPython Parallel cluster; ex04-ex07 start their own
+# ephemeral Redis container (redis:7-alpine on port 6380) when they run and remove it
+# when they finish; ex09 builds and runs a Docker container. All need Docker running.
 version: '3'
 
 vars:
@@ -20,19 +21,6 @@ tasks:
     desc: 'Run a Chapter 11 script: task ch11:run -- ex06_pubsub_vs_consumer_group/ex06_pubsub_vs_consumer_group.py'
     cmds: ['{{.PY}} {{.CLI_ARGS}}']
 
-  redis-up:
-    desc: Start the Redis container the queue/pubsub exercises talk to (host port 6380)
-    cmds:
-      - docker rm -f hpp-redis 2>/dev/null || true
-      - docker run -d --name hpp-redis -p 6380:6379 redis:7-alpine
-      - 'echo "Redis up on localhost:6380 — ex04-ex07 will now run."'
-
-  redis-down:
-    desc: Stop and remove the Redis container
-    cmds:
-      - docker rm -f hpp-redis 2>/dev/null || true
-      - 'echo "Redis container removed; ex04-ex07 will skip cleanly."'
-
   docker-build:
     desc: Pre-build the ex09 diffusion image (otherwise ex09 builds it on first run)
     cmds:
@@ -45,7 +33,7 @@ tasks:
       - '{{.PY}} hypothesis/h01_ipython_vs_pool/plot.py'
 
   smoke:
-    desc: Run every Chapter 11 exercise as a fast correctness check (clusters dominate; Redis/Docker exercises skip cleanly if down)
+    desc: Run every Chapter 11 exercise as a correctness check (clusters + an ephemeral Redis per broker exercise; needs Docker)
     cmds:
       - |
         ran=0

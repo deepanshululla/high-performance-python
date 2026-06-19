@@ -67,8 +67,9 @@ the visual form of "scale horizontally until you run out of cores."
 .venv/bin/python chapter_11_clusters_and_job_queues/ex04_redis_work_queue/ex04_redis_work_queue.py
 ```
 
-Needs the Redis container — `task ch11:redis-up` (the exercise skips cleanly with a friendly message
-if Redis is down). Your peak speedup is bounded by your core count; the durable result is the
+Needs Docker running — the exercise starts its own `redis:7-alpine` container (on port 6380) when it
+begins and removes it when it finishes, so there is nothing to set up or tear down by hand. Your peak
+speedup is bounded by your core count; the durable result is the
 near-linear climb of throughput with consumers while the per-job work is heavy enough to dwarf the
 queue fetch.
 

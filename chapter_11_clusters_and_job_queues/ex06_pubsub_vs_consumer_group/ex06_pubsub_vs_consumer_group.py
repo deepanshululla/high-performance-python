@@ -113,18 +113,12 @@ def consumer_group():
 
 
 def measure():
-    with ephemeral_redis() as r:
-        if r is None:
-            return None
+    with ephemeral_redis():
         return {"fanout": fanout(), "group": consumer_group()}
 
 
 def main():
     r = measure()
-    if r is None:
-        print("[skipped] no Redis reachable and Docker unavailable — cannot run an "
-              "ephemeral broker.")
-        return
     fo, gr = r["fanout"], r["group"]
     print(f"{N_MESSAGES} messages, {N_CONSUMERS} consumers")
     print(f"  pub/sub fan-out      : per-consumer {fo}  total {sum(fo)} "

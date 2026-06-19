@@ -17,6 +17,10 @@ memory numbers, so there's nothing to read off a separate profiler for the basic
 - **Python 3.14** — uv will fetch it if you don't have it.
 - A **C compiler** (clang/gcc) — only for Chapter 8's Cython/FFI drills. macOS ships clang with
   the Xcode command-line tools.
+- **Docker** — only for Chapters 10–11. Chapter 10's Redis-flag drill and Chapter 11's queue and
+  pub/sub drills talk to a `redis:7-alpine` container; Chapter 11 starts and stops its own
+  ephemeral one per exercise (so there's nothing to manage by hand), and Chapter 11's Docker-overhead
+  drill builds and runs a container of its own.
 
 Chapter 8 has a few *optional* extras, each needed only for the drill that uses it. The chapter
 degrades gracefully when one is missing:
@@ -33,8 +37,8 @@ uv sync
 ```
 
 That creates `.venv/` and installs every dependency the chapters use — numpy, pandas, polars,
-dask, scikit-learn, numba, cython, cffi, pythran, torch, plus the profiling and visualization
-front-ends.
+dask, scikit-learn, numba, cython, cffi, pythran, torch, aiohttp, ipyparallel, redis, msgpack,
+marisa-trie, mmh3, bitarray, plus the profiling and visualization front-ends.
 
 ## Run a drill
 

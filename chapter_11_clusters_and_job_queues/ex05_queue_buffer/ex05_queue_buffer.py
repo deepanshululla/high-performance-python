@@ -104,9 +104,7 @@ def measure():
     # (job_time / consumers) seconds keeps arrival ≈ consumption.
     job_time = DARTS_PER_JOB / 10_000_000      # ~darts/sec measured for this loop
     service_interval = job_time / N_CONSUMERS
-    with ephemeral_redis() as r:
-        if r is None:
-            return None
+    with ephemeral_redis():
         return {
             "burst": run_scenario("burst", service_interval),
             "steady": run_scenario("steady", service_interval),
@@ -115,10 +113,6 @@ def measure():
 
 def main():
     r = measure()
-    if r is None:
-        print("[skipped] no Redis reachable and Docker unavailable — cannot run an "
-              "ephemeral broker.")
-        return
     print(f"queue-as-buffer: {N_JOBS} jobs of {DARTS_PER_JOB:,} darts, {N_CONSUMERS} consumers")
     for name in ("burst", "steady"):
         s = r[name]

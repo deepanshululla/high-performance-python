@@ -158,11 +158,8 @@ arrangement that meets the requirement, after a single machine has been exhauste
 ## Running everything
 
 ```bash
-# one exercise
-.venv/bin/python chapter_11_clusters_and_job_queues/ex01_ipython_pi/ex01_ipython_pi.py
-
-# the Redis broker the queue/pub-sub exercises need (Docker)
-task ch11:redis-up        # ... and `task ch11:redis-down` to remove it
+# one exercise (broker exercises start + stop their own Redis container — just needs Docker)
+.venv/bin/python chapter_11_clusters_and_job_queues/ex04_redis_work_queue/ex04_redis_work_queue.py
 
 # regenerate every chart + the dashboard, then the hypothesis chart (re-measures; ~2 min)
 .venv/bin/python chapter_11_clusters_and_job_queues/visualize_exercises.py
@@ -177,5 +174,7 @@ task ch11:smoke              # run every exercise as a fast correctness check
 Every script is self-contained: the shared workload (`_cluster.py`) and the IPython cluster helper
 (`_ipp.py`) live at the chapter root, and each exercise adds the chapter directory to `sys.path`. The
 cluster exercises start a local IPython cluster (a few seconds of startup each); the queue and
-pub/sub exercises skip cleanly with a friendly message if Redis is down, and the Docker exercise
-skips if Docker is unavailable — so the smoke target passes even without those services running.
+pub/sub exercises spin up their own ephemeral `redis:7-alpine` container via `ephemeral_redis()` when
+they run and remove it when they finish (so the broker lives exactly as long as the test, with
+nothing to start or stop by hand); and the Docker exercise builds its image on first run. All of
+these need Docker running.

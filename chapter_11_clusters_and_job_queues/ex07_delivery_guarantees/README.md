@@ -70,7 +70,8 @@ failure you pick your poison.
 .venv/bin/python chapter_11_clusters_and_job_queues/ex07_delivery_guarantees/ex07_delivery_guarantees.py
 ```
 
-Needs the Redis container — `task ch11:redis-up` (skips cleanly if Redis is down). The crash schedule
+Needs Docker running — the exercise starts its own `redis:7-alpine` container when it begins and
+removes it when it finishes, so there is nothing to set up by hand. The crash schedule
 is deterministic, so the counts reproduce exactly: eight losses one way, eight duplicates the other.
 
 ## 5 Whys

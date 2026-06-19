@@ -27,6 +27,10 @@ prose `README.md`.
 | [6 — Matrix and Vector Computation](chapter_6_matrix_and_vector_computation/) | numpy vectorization, in-place vs out-of-place, cache effects, `numexpr`, GPU/MPS | 12 exercises, 7 hypotheses |
 | [7 — Pandas, Dask, Polars](chapter_7_pandas_dask_polars/) | row-iteration vehicles, the `concat` quadratic trap, Arrow storage, scaling engines | 9 exercises, 6 hypotheses |
 | [8 — Compiling to C](chapter_8_compiling_to_c/) | Cython, Numba, Pythran, and the FFI ladder: ctypes, cffi, a CPython extension, f2py, Rust/PyO3 | 12 exercises |
+| [9 — Asynchronous I/O](chapter_9_asynchronous_io/) | the event loop, coroutines and `TaskGroup`, an `aiohttp` crawler, concurrency sweeps, batched pipelining, and a real OCR pipeline | 9 exercises, 3 hypotheses |
+| [10 — Multiprocessing](chapter_10_multiprocessing/) | Monte Carlo pi and prime checking across cores: process scaling, `chunksize`, IPC early-exit flags, zero-copy shared arrays, locking, fork vs spawn | 9 exercises, 1 hypothesis |
+| [11 — Clusters and Job Queues](chapter_11_clusters_and_job_queues/) | IPython Parallel, Redis work queues and pub/sub vs consumer groups, delivery guarantees, message serialization, Docker overhead | 9 exercises, 1 hypothesis |
+| [12 — Using Less RAM](chapter_12_using_less_ram/) | arrays vs numpy, sparse matrices, tries, feature hashing, and probabilistic structures (Morris, Bloom, HyperLogLog) | 10 exercises, 1 hypothesis |
 
 A repo-wide [`glossary.md`](glossary.md) collects the concepts, tools, and terms as the
 exercises use them, following the book's arc.
@@ -34,12 +38,17 @@ exercises use them, following the book's arc.
 ## Setup
 
 The repo is `uv`-managed. One sync installs every dependency the chapters use (numpy, pandas,
-polars, dask, scikit-learn, numba, cython, cffi, pythran, torch, and the profiling/visualization
-front-ends):
+polars, dask, scikit-learn, numba, cython, cffi, pythran, torch, aiohttp, ipyparallel, redis,
+msgpack, marisa-trie, mmh3, bitarray, and the profiling/visualization front-ends):
 
 ```bash
 uv sync
 ```
+
+A few chapters also reach for external tooling: Chapter 8 builds compiled extensions (clang,
+optionally `gfortran` and `rustc`), and Chapters 10–11 use **Docker** to run a Redis container
+(Chapter 11 starts and stops its own ephemeral one per exercise). Exercises that need a tool say
+so in their README.
 
 Benchmarked on **CPython 3.14 / Apple Silicon (10 cores)**, run from the repo root. Exercises
 add the repo root to `sys.path` to import the two shared helpers:
@@ -70,7 +79,7 @@ chapter Taskfile also runs standalone (`cd chapter_8_compiling_to_c && task`).
 
 ```bash
 task                 # list the root tasks
-task --list-all      # include every chapter task (ch2:… … ch8:…)
+task --list-all      # include every chapter task (ch2:… … ch12:…)
 task setup           # uv sync
 task docs            # start the documentation site (hot reload)
 

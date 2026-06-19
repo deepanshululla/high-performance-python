@@ -64,7 +64,8 @@ once.
 .venv/bin/python chapter_11_clusters_and_job_queues/ex06_pubsub_vs_consumer_group/ex06_pubsub_vs_consumer_group.py
 ```
 
-Needs the Redis container — `task ch11:redis-up` (skips cleanly if Redis is down). The per-consumer
+Needs Docker running — the exercise starts its own `redis:7-alpine` container when it begins and
+removes it when it finishes, so there is nothing to set up by hand. The per-consumer
 split varies slightly run to run with scheduling; the durable result is fan-out delivering K copies
 versus the consumer group splitting one pass.
 

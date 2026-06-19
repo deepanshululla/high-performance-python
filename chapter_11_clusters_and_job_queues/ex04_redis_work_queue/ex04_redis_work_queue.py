@@ -71,8 +71,6 @@ def fill_queue(r, n_consumers):
 
 def measure():
     with ephemeral_redis() as r:
-        if r is None:
-            return None
         rows = []
         for m in CONSUMER_COUNTS:
             fill_queue(r, m)
@@ -87,10 +85,6 @@ def measure():
 
 def main():
     rows = measure()
-    if rows is None:
-        print("[skipped] no Redis reachable and Docker unavailable — cannot run an "
-              "ephemeral broker.")
-        return
     base = rows[0][1]
     print(f"Redis work queue: drain {N_JOBS} jobs of {DARTS_PER_JOB:,} darts each")
     print(f"  (queue: a Redis list at {REDIS_URL}, key {JOBS_KEY!r})")

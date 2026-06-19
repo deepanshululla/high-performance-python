@@ -6,9 +6,10 @@ same numbers the scripts print. It writes `chart.png` into each folder, then ass
 `exercises_dashboard.png` here.
 
 Several exercises re-measure expensively: ex01/ex02/ex03 each start an IPython cluster (~7 s of
-startup apiece), ex04-ex07 need the Redis container (`task ch11:redis-up`), and ex09 builds/runs a
-Docker container. Exercises whose backing service is unavailable are skipped with a message rather
-than crashing the whole run, and `--only exNN` regenerates a single chart while iterating.
+startup apiece), ex04-ex07 each start and remove their own ephemeral Redis container, and ex09
+builds/runs a Docker container. All of these need Docker running; any chart that errors is reported
+and skipped rather than crashing the whole run, and `--only exNN` regenerates a single chart while
+iterating.
 
 Run: .venv/bin/python chapter_11_clusters_and_job_queues/visualize_exercises.py
      .venv/bin/python chapter_11_clusters_and_job_queues/visualize_exercises.py --only ex06
@@ -46,14 +47,6 @@ def _barlabels(ax, bars, fmt="{:.2f}", dy=1.01):
     for b in bars:
         ax.text(b.get_x() + b.get_width() / 2, b.get_height() * dy,
                 fmt.format(b.get_height()), ha="center", va="bottom", fontsize=9)
-
-
-def _skip_chart(folder, msg):
-    """Write a placeholder chart when an exercise skipped (no Redis/Docker)."""
-    fig, ax = plt.subplots(figsize=(4.6, 3.6))
-    ax.text(0.5, 0.5, msg, ha="center", va="center", wrap=True)
-    ax.axis("off")
-    save(fig, str(HERE / folder / "x.py"))
 
 
 def chart_ex01(_):
@@ -114,8 +107,6 @@ def chart_ex03(_):
 def chart_ex04(_):
     m = load("ex04_redis_work_queue")
     rows = m.measure()
-    if rows is None:
-        return _skip_chart("ex04_redis_work_queue", "Redis unavailable\n(exercise skipped)")
     base = rows[0][1]
     xs = [c for c, _ in rows]
     speed = [base / t for _, t in rows]
@@ -133,8 +124,6 @@ def chart_ex04(_):
 def chart_ex05(_):
     m = load("ex05_queue_buffer")
     r = m.measure()
-    if r is None:
-        return _skip_chart("ex05_queue_buffer", "Redis unavailable\n(exercise skipped)")
     fig, ax = plt.subplots(figsize=(4.8, 3.6))
     for name, color in [("burst", RED), ("steady", GOOD)]:
         ts = [t for t, _ in r[name]["samples"]]
@@ -150,8 +139,6 @@ def chart_ex05(_):
 def chart_ex06(_):
     m = load("ex06_pubsub_vs_consumer_group")
     r = m.measure()
-    if r is None:
-        return _skip_chart("ex06_pubsub_vs_consumer_group", "Redis unavailable\n(exercise skipped)")
     fig, ax = plt.subplots(figsize=(4.8, 3.6))
     k = len(r["fanout"]); x = range(k); w = 0.4
     ax.bar([i - w/2 for i in x], r["fanout"], w, color=VIO, label="pub/sub fan-out")
@@ -166,8 +153,6 @@ def chart_ex06(_):
 def chart_ex07(_):
     m = load("ex07_delivery_guarantees")
     r = m.measure()
-    if r is None:
-        return _skip_chart("ex07_delivery_guarantees", "Redis unavailable\n(exercise skipped)")
     amo, alo = r["at_most_once"], r["at_least_once"]
     fig, ax = plt.subplots(figsize=(4.8, 3.6))
     labels = ["at-most-once\n(list+LPOP)", "at-least-once\n(stream+XACK)"]

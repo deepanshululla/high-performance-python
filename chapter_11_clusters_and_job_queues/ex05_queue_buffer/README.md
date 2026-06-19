@@ -66,7 +66,8 @@ pattern shapes the depth, not the finish time.
 .venv/bin/python chapter_11_clusters_and_job_queues/ex05_queue_buffer/ex05_queue_buffer.py
 ```
 
-Needs the Redis container — `task ch11:redis-up` (skips cleanly if Redis is down). The exact peak
+Needs Docker running — the exercise starts its own `redis:7-alpine` container when it begins and
+removes it when it finishes, so there is nothing to set up by hand. The exact peak
 and timing depend on your cores and Redis latency; the durable result is that a burst inflates the
 queue depth, not the completion time, and the consumers set the pace.
 
