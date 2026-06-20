@@ -284,6 +284,28 @@ and a foreign-function bridge — measured into the book's Table 8-1 and Table 8
 
 ---
 
+## Lessons from the Field (Chapter 13)
+
+The book's war-stories chapter; these terms come from operationalising the runnable lessons. The
+unifying theme: the biggest wins come from changing *what* you compute, not how fast you compute it.
+
+| Term | Definition |
+| --- | --- |
+| **`requests.Session` / connection reuse** | A persistent HTTP client that stores cookies and reuses the TCP connection across calls — required for a multi-step authenticated API flow, and the reason replaying a site's internal JSON API beats driving a browser (~3x before concurrency, ~60x with async) (ex01). |
+| **Internal/undocumented API scraping** | Calling the small JSON endpoints a page's own JavaScript calls (found in the browser network panel) instead of rendering the whole page; moves bytes not markup, and fans out asynchronously — the layered structure behind the book's 1000x (ex01). |
+| **Aho-Corasick prefilter** | An automaton that scans text once for *all* keyword literals simultaneously, used to shrink the candidate set before expensive per-pattern matching. A sound prefilter (no false negatives), it makes per-tweet cost independent of the keyword count — ~1700x over running every regex (ex02). |
+| **Approximate-then-exact (false-positive bias)** | A fast approximate filter that may over-include but never excludes a true match, run before the exact test on the survivors. Bounding-box overlap (~10x) and a precomputed STRtree spatial index (~80x) are the rungs; the exact test still decides every answer (ex03). |
+| **Branchless vector masks** | Expressing logic as arithmetic — `AND=×`, `OR=max`, `NOT=1−x` — to avoid per-element branches. A win on GPU/tensor frameworks where branches fork warp lanes, but a ~2x *loss* on CPU NumPy, whose boolean ops are already branchless (ex04). |
+| **Loop fusion (Numba)** | Numba collapses a NumPy array expression's per-operation loops into one element-wise pass with no temporaries — running at exactly the speed of the hand-written loop (~5.3x over NumPy), so rewriting expressions as explicit loops is unnecessary (ex05). |
+| **As-of / path-dependent computation** | Each timestamp uses the most recent (as-of) value of a coarser series. Vectorising it by broadcasting forces a `T×N×N` temporary that scales with the timestamp count and exhausts memory; a Numba loop keeps an O(N²) working set and is faster too (ex06). |
+| **Solving the wrong problem / leading indicator** | The dominant "optimization": a domain fact (rented carts predict truck arrivals) reframes a hard ML forecast as a trivial lookup, deleting the model and grid search — ~400,000x less compute *and* more accurate (ex07). |
+| **Defensive code / Pandera schema** | Treating data as an untrusted input and validating types, ranges, and categories at the boundary. Catches the bad data that *doesn't* crash — the silent corruption that ships a wrong number — converting it to a loud, itemised failure at ~31M rows/s (ex08). |
+| **Streaming (generators) vs materialising** | Pulling data one item at a time into an accumulator (constant memory) instead of building a list of all of it (memory grows with N). ~4700x less peak RAM at the same speed, and it removes the dataset-size ceiling entirely (ex09). |
+| **BLAS (gemm/axpy) / "know your BLAS"** | Vendor-tuned linear-algebra routines (cache blocking, SIMD, threading) that numpy dispatches `@`/`dot` to. ~78x beyond even a *compiled* naive loop, because the cost is memory movement and vector throughput, not interpreter overhead — phrase the work as a BLAS call (ex10). |
+| **Reframe vs micro-optimization** | Rawlinson's claim that tuning gives 2–10x while new approaches give 10–100x. CONFIRMED and sharpened: genuine tuning of an already-compiled loop gave 1.0x, and the order-of-magnitude wins were all algorithmic — including a one-line combined regex, so the band boundary is about *what changes algorithmically*, not lines touched (h01). |
+
+---
+
 ## Cross-cutting ideas
 
 These recur in every chapter, so they're collected here rather than repeated.

@@ -31,6 +31,7 @@ prose `README.md`.
 | [10 — Multiprocessing](chapter_10_multiprocessing/) | Monte Carlo pi and prime checking across cores: process scaling, `chunksize`, IPC early-exit flags, zero-copy shared arrays, locking, fork vs spawn | 9 exercises, 1 hypothesis |
 | [11 — Clusters and Job Queues](chapter_11_clusters_and_job_queues/) | IPython Parallel, Redis work queues and pub/sub vs consumer groups, delivery guarantees, message serialization, Docker overhead | 9 exercises, 1 hypothesis |
 | [12 — Using Less RAM](chapter_12_using_less_ram/) | arrays vs numpy, sparse matrices, tries, feature hashing, and probabilistic structures (Morris, Bloom, HyperLogLog) | 10 exercises, 1 hypothesis |
+| [13 — Lessons from the Field](chapter_13_lessons_from_the_field/) | practitioners' war stories made runnable: Aho-Corasick and spatial-index prefilters, the "wrong problem" proxy, defensive `pandera`, streaming, knowing your BLAS — changing the problem beats speeding up the work | 10 exercises, 1 hypothesis |
 
 A repo-wide [`glossary.md`](glossary.md) collects the concepts, tools, and terms as the
 exercises use them, following the book's arc.

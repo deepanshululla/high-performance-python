@@ -1,0 +1,40 @@
+# Chapter 13 — Lessons from the Field.
+# Standalone:  cd chapter_13_lessons_from_the_field && task
+# From root:   task ch13:<name>
+# Most exercises run in seconds; ex07 grid-searches (~14s) and ex06/ex09 spawn a process per RSS read.
+version: '3'
+
+vars:
+  ROOT:
+    sh: cd .. && pwd
+  PY: '{{.ROOT}}/.venv/bin/python'
+
+tasks:
+  default:
+    desc: List Chapter 13 tasks
+    cmds: [task --list]
+    silent: true
+
+  run:
+    desc: 'Run a Chapter 13 script: task ch13:run -- ex02_aho_corasick_prefilter/ex02_aho_corasick_prefilter.py'
+    cmds: ['{{.PY}} {{.CLI_ARGS}}']
+
+  viz:
+    desc: Regenerate Chapter 13 charts + dashboard + the hypothesis chart (re-measures, ~1 min)
+    cmds:
+      - '{{.PY}} visualize_exercises.py'
+      - '{{.PY}} hypothesis/h01_reframe_vs_microopt/plot.py'
+
+  smoke:
+    desc: Run every Chapter 13 exercise as a fast correctness check (ex07 grid-searches, ~14s)
+    cmds:
+      - |
+        ran=0
+        for s in ex*/ex*.py; do
+          [ -f "$s" ] || continue
+          echo "== $s =="; {{.PY}} "$s" >/dev/null || { echo "FAILED: $s"; exit 1; }
+          ran=$((ran+1))
+        done
+        echo "== hypothesis/h01_reframe_vs_microopt/benchmark.py =="
+        {{.PY}} hypothesis/h01_reframe_vs_microopt/benchmark.py >/dev/null || { echo "FAILED: h01"; exit 1; }
+        echo "ok — $ran exercises + h01 passed"

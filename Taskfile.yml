@@ -28,6 +28,7 @@ includes:
   ch10: {taskfile: ./chapter_10_multiprocessing/Taskfile.yml, dir: ./chapter_10_multiprocessing}
   ch11: {taskfile: ./chapter_11_clusters_and_job_queues/Taskfile.yml, dir: ./chapter_11_clusters_and_job_queues}
   ch12: {taskfile: ./chapter_12_using_less_ram/Taskfile.yml, dir: ./chapter_12_using_less_ram}
+  ch13: {taskfile: ./chapter_13_lessons_from_the_field/Taskfile.yml, dir: ./chapter_13_lessons_from_the_field}
 
 tasks:
   default:
@@ -60,6 +61,7 @@ tasks:
       - task: ch10:viz
       - task: ch11:viz
       - task: ch12:viz
+      - task: ch13:viz
 
   smoke:all:
     desc: Run every exercise in every chapter (slow — Chapter 8 builds extensions)
@@ -75,6 +77,7 @@ tasks:
       - task: ch10:smoke
       - task: ch11:smoke
       - task: ch12:smoke
+      - task: ch13:smoke
 
   # --- Documentation site (website/) ---------------------------------------
   docs:
