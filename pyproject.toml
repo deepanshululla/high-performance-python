@@ -45,7 +45,7 @@ dependencies = [
     "scipy>=1.17.1",          # chapter_6 ex12: scipy.ndimage.laplace cautionary tale (Example 6-27)
     "shapely>=2.1.2",
     "swifter>=1.4.0",
-    "torch>=2.12.0",          # chapter_6 ex07-ex10: GPU diffusion + precision on MPS/CUDA
+    "torch>=2.13.0",          # chapter_6 ex07-ex10: GPU diffusion + precision on MPS/CUDA
     "uvicorn[standard]>=0.48.0",
     "viztracer>=1.1.1",
 ]
