@@ -5,7 +5,7 @@ description = "Julia set example from High Performance Python, with profiling & 
 requires-python = ">=3.12"
 # The Julia set itself is pure standard library — no runtime dependencies.
 dependencies = [
-    "aiohttp>=3.14.1",
+    "aiohttp>=3.14.3",
     "bcrypt>=5.0.0",
     "bitarray>=3.8.2",
     "cffi>=2.0.0",
